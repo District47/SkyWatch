@@ -26,6 +26,10 @@ log = logging.getLogger("skywatch.adsb.opensky")
 _OPENSKY_URL = "https://opensky-network.org/api/states/all"
 _POLL_INTERVAL = 10.0
 _HTTP_TIMEOUT = 15.0
+# Anonymous OpenSky calls are capped at ~400/day. When we hit a 429 we back
+# off significantly so we don't pile up more rejections.
+_THROTTLE_BACKOFF = 300.0  # 5 minutes
+_MAX_THROTTLE_BACKOFF = 1800.0  # 30 minutes
 _USER_AGENT = "SkyWatch/1.0"
 _MAX_LAT_SPAN = 20.0
 _MAX_LON_SPAN = 30.0
@@ -86,18 +90,29 @@ class OpenSky:
         except asyncio.TimeoutError:
             log.info("opensky proceeding with default bounds (no dashboard bounds in 10s)")
 
+        # Adaptive sleep: extends when OpenSky throttles us with HTTP 429 so
+        # we don't pile up requests against an exhausted daily quota.
+        sleep_for = _POLL_INTERVAL
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, headers={"User-Agent": _USER_AGENT}) as client:
             while not self._stop.is_set():
+                throttled = False
                 try:
-                    await self._poll(client)
+                    throttled = await self._poll(client)
                 except Exception as e:
                     log.warning("opensky poll failed: %s", e)
+                if throttled:
+                    sleep_for = min(sleep_for * 2 if sleep_for > _POLL_INTERVAL else _THROTTLE_BACKOFF,
+                                    _MAX_THROTTLE_BACKOFF)
+                    log.warning("opensky throttled (HTTP 429); backing off for %.0fs", sleep_for)
+                else:
+                    sleep_for = _POLL_INTERVAL
                 try:
-                    await asyncio.wait_for(self._stop.wait(), timeout=_POLL_INTERVAL)
+                    await asyncio.wait_for(self._stop.wait(), timeout=sleep_for)
                 except asyncio.TimeoutError:
                     pass
 
-    async def _poll(self, client: httpx.AsyncClient) -> None:
+    async def _poll(self, client: httpx.AsyncClient) -> bool:
+        """Returns True if we were throttled (HTTP 429), so the caller can back off."""
         if self._box is not None:
             b = Bounds(self._box.min_lat, self._box.max_lat, self._box.min_lon, self._box.max_lon)
         else:
@@ -108,13 +123,16 @@ class OpenSky:
             "lomin": f"{b.min_lon:.4f}", "lomax": f"{b.max_lon:.4f}",
         }
         r = await client.get(_OPENSKY_URL, params=params)
+        if r.status_code == 429:
+            return True
         if r.status_code != 200:
             log.info("opensky returned %d", r.status_code)
-            return
+            return False
         data = r.json()
         states = data.get("states") or []
         for s in states:
             await self._ingest(s)
+        return False
 
     async def _ingest(self, s: list) -> None:
         # OpenSky state vector index reference (https://openskynetwork.github.io/opensky-api/rest.html).
