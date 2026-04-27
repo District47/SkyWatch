@@ -1556,352 +1556,129 @@
         if (activeFilter !== 'noaa') return;
         var list = document.getElementById('target-list');
 
-        // Preserve current selections before re-render
         var el;
         el = document.getElementById('nwr-device'); if (el) savedNWRDevice = el.value;
         el = document.getElementById('nwr-freq'); if (el) savedNWRFreq = el.value;
-        el = document.getElementById('noaa-tab-device'); if (el) savedNOAADevice = el.value;
-        el = document.getElementById('noaa-tab-sat'); if (el) savedNOAASat = el.value;
-        el = document.getElementById('noaa-tab-dur'); if (el) savedNOAADur = el.value;
 
-        // Fetch all data in parallel
-        Promise.all([
-            fetch('/api/noaa/satellites').then(function(r) { return r.json(); }),
-            fetch('/api/noaa/passes').then(function(r) { return r.json(); }),
-            fetch('/api/noaa/captures').then(function(r) { return r.json(); }),
-            fetch('/api/status').then(function(r) { return r.json(); }),
-        ]).then(function(results) {
-            var sats = results[0] || [];
-            var passes = results[1] || [];
-            var captures = results[2] || [];
-            var statuses = results[3] || [];
+        var html = '<div class="noaa-panel">';
+        html += '<div class="noaa-section">';
+        html += '<h3 class="noaa-heading">Weather Radio (NWR 162 MHz)</h3>';
+        html += '<div class="noaa-controls">';
+        html += '<div class="noaa-ctrl-row">' +
+            '<select id="nwr-freq" class="device-select" style="flex:1">' +
+                '<option value="162.400">WX1 — 162.400 MHz</option>' +
+                '<option value="162.425">WX2 — 162.425 MHz</option>' +
+                '<option value="162.450">WX3 — 162.450 MHz</option>' +
+                '<option value="162.475">WX4 — 162.475 MHz</option>' +
+                '<option value="162.500">WX5 — 162.500 MHz</option>' +
+                '<option value="162.525">WX6 — 162.525 MHz</option>' +
+                '<option value="162.550">WX7 — 162.550 MHz</option>' +
+            '</select>' +
+            '<input type="number" id="nwr-device" class="tx-input" value="' + savedNWRDevice + '" style="width:45px" title="RTL-SDR device" />' +
+        '</div>';
+        html += '<div class="noaa-ctrl-row" style="margin-top:6px">' +
+            '<button id="nwr-listen" class="noaa-btn">Listen</button>' +
+            '<button id="nwr-stop" class="noaa-btn noaa-btn-stop" style="display:none">Stop</button>' +
+            '<button id="nwr-scan" class="noaa-btn" style="background:#1e293b;color:#94a3b8">Scan All</button>' +
+        '</div>';
+        html += '<div id="nwr-status-line" style="margin-top:6px;font-size:11px;color:#64748b"></div>';
+        html += '<audio id="nwr-audio" style="display:none" autoplay></audio>';
+        html += '<div id="nwr-scan-results"></div>';
+        html += '</div></div></div>';
+        list.innerHTML = html;
 
-            var noaaStatus = statuses.find(function(s) { return s.name === 'noaa'; });
-            var noaaRunning = noaaStatus && noaaStatus.running;
+        var nwrFreqEl = document.getElementById('nwr-freq');
+        if (nwrFreqEl) nwrFreqEl.value = savedNWRFreq;
 
-            var html = '<div class="noaa-panel">';
+        // ── NWR button handlers ──
+        var nwrListen = document.getElementById('nwr-listen');
+        var nwrStopBtn = document.getElementById('nwr-stop');
+        var nwrScanBtn = document.getElementById('nwr-scan');
 
-            // ── Weather Radio ──
-            html += '<div class="noaa-section">';
-            html += '<h3 class="noaa-heading">Weather Radio (NWR 162 MHz)</h3>';
-            html += '<div class="noaa-controls">';
-
-            // Fetch weather radio status
-            var radioHtml = '<div class="noaa-ctrl-row">' +
-                '<select id="nwr-freq" class="device-select" style="flex:1">' +
-                    '<option value="162.400">WX1 — 162.400 MHz</option>' +
-                    '<option value="162.425">WX2 — 162.425 MHz</option>' +
-                    '<option value="162.450">WX3 — 162.450 MHz</option>' +
-                    '<option value="162.475">WX4 — 162.475 MHz</option>' +
-                    '<option value="162.500">WX5 — 162.500 MHz</option>' +
-                    '<option value="162.525">WX6 — 162.525 MHz</option>' +
-                    '<option value="162.550">WX7 — 162.550 MHz</option>' +
-                '</select>' +
-                '<input type="number" id="nwr-device" class="tx-input" value="' + savedNWRDevice + '" style="width:45px" title="RTL-SDR device" />' +
-            '</div>';
-            radioHtml += '<div class="noaa-ctrl-row" style="margin-top:6px">' +
-                '<button id="nwr-listen" class="noaa-btn">Listen</button>' +
-                '<button id="nwr-stop" class="noaa-btn noaa-btn-stop" style="display:none">Stop</button>' +
-                '<button id="nwr-scan" class="noaa-btn" style="background:#1e293b;color:#94a3b8">Scan All</button>' +
-            '</div>';
-            radioHtml += '<div id="nwr-status-line" style="margin-top:6px;font-size:11px;color:#64748b"></div>';
-            radioHtml += '<audio id="nwr-audio" style="display:none" autoplay></audio>';
-            radioHtml += '<div id="nwr-scan-results"></div>';
-            html += radioHtml;
-            html += '</div></div>';
-
-            // ── SDR Capture Controls ──
-            html += '<div class="noaa-section">';
-            html += '<h3 class="noaa-heading">Satellite Capture</h3>';
-            html += '<div class="noaa-controls">';
-            html += '<div class="noaa-ctrl-row">' +
-                '<span style="font-size:14px">&#x1f6f0;</span>' +
-                '<select id="noaa-tab-device" class="device-select" style="width:100px">' +
-                    '<option value="-1">Device</option>' +
-                '</select>' +
-                '<select id="noaa-tab-sat" class="device-select" style="flex:1">' +
-                    '<option value="137.1000" data-name="NOAA 19">NOAA 19 — 137.100 MHz</option>' +
-                    '<option value="137.6200" data-name="NOAA 15">NOAA 15 — 137.620 MHz</option>' +
-                    '<option value="137.9125" data-name="NOAA 18">NOAA 18 — 137.9125 MHz</option>' +
-                '</select>' +
-            '</div>';
-            html += '<div class="noaa-ctrl-row" style="margin-top:4px">' +
-                '<input type="number" id="noaa-tab-dur" class="tx-input" value="' + savedNOAADur + '" style="width:65px" title="Duration (seconds)" />' +
-                '<span style="font-size:10px;color:#64748b">sec</span>' +
-                '<button id="noaa-tab-capture" class="noaa-btn' + (noaaCaptureRunning ? ' noaa-btn-active' : '') + '">' +
-                    (noaaCaptureRunning ? 'Capturing...' : 'Capture') +
-                '</button>' +
-                '<button id="noaa-tab-auto" class="noaa-btn' + (noaaRunning ? ' noaa-btn-stop' : '') + '">' +
-                    (noaaRunning ? 'Stop Auto' : 'Auto-Capture') +
-                '</button>' +
-            '</div>';
-            html += '</div></div>';
-
-            // ── Live Satellite Positions ──
-            html += '<div class="noaa-section">';
-            html += '<h3 class="noaa-heading">Live Satellites</h3>';
-            sats.forEach(function(s) {
-                var vis = s.visible;
-                html += '<div class="target-item">' +
-                    '<div class="target-icon" style="font-size:20px;' + (vis ? 'opacity:1' : 'opacity:0.4') + '">&#x1f6f0;</div>' +
-                    '<div class="target-info">' +
-                        '<div class="target-name" style="color:' + (vis ? '#4fc3f7' : '#64748b') + '">' +
-                            s.name + (vis ? ' <span style="color:#6ee7b7;font-size:10px">VISIBLE</span>' : '') +
-                        '</div>' +
-                        '<div class="target-meta">' +
-                            s.lat.toFixed(2) + ', ' + s.lon.toFixed(2) +
-                            ' · Alt: ' + Math.round(s.alt) + ' km' +
-                            ' · ' + s.velocity.toFixed(1) + ' km/s' +
-                            ' · ' + s.frequency.toFixed(4) + ' MHz' +
-                        '</div>' +
-                        (vis ? '<div class="target-meta" style="color:#6ee7b7">' +
-                            'EL ' + s.elevation.toFixed(1) + '\u00B0 · AZ ' + s.azimuth.toFixed(0) + '\u00B0' +
-                        '</div>' : '') +
-                    '</div>' +
-                '</div>';
-            });
-            html += '</div>';
-
-            // ── Upcoming Passes ──
-            var upcoming = passes.filter(function(p) { return new Date(p.aos) > new Date(); });
-            if (upcoming.length > 0) {
-                html += '<div class="noaa-section">';
-                html += '<h3 class="noaa-heading">Upcoming Passes</h3>';
-                upcoming.slice(0, 8).forEach(function(p) {
-                    var aos = new Date(p.aos);
-                    var now = new Date();
-                    var minsUntil = Math.round((aos - now) / 60000);
-                    var timeLabel = minsUntil <= 0 ? 'NOW' : (minsUntil < 60 ? minsUntil + ' min' : Math.round(minsUntil/60) + 'h ' + (minsUntil%60) + 'm');
-                    html += '<div class="target-item">' +
-                        '<div class="target-icon" style="color:#4fc3f7;font-size:14px">&#x1f4e1;</div>' +
-                        '<div class="target-info">' +
-                            '<div class="target-name" style="color:#4fc3f7">' + p.satellite +
-                                ' <span style="color:#94a3b8;font-size:10px">in ' + timeLabel + '</span></div>' +
-                            '<div class="target-meta">' +
-                                aos.toLocaleTimeString() + ' · ' +
-                                Math.round(p.max_el) + '\u00B0 max · ' +
-                                Math.round(p.duration/60) + ' min · ' +
-                                p.frequency.toFixed(4) + ' MHz' +
-                            '</div>' +
-                        '</div>' +
-                    '</div>';
-                });
-                html += '</div>';
-            }
-
-            // ── Captured Images ──
-            if (captures && captures.length > 0) {
-                html += '<div class="noaa-section">';
-                html += '<h3 class="noaa-heading">Captured Images</h3>';
-                captures.slice().reverse().forEach(function(c) {
-                    html += '<div class="noaa-capture-card">' +
-                        '<div class="target-name" style="color:#4fc3f7">' + c.satellite + '</div>' +
-                        '<div class="target-meta">' +
-                            new Date(c.start_time).toLocaleString() + ' · ' +
-                            c.lines + ' lines · ' + Math.round(c.duration/60) + ' min' +
-                        '</div>';
-                    if (c.image_b64) {
-                        html += '<img src="data:image/png;base64,' + c.image_b64 +
-                            '" class="noaa-capture-img" />';
-                    }
-                    html += '</div>';
-                });
-                html += '</div>';
-            }
-
-            html += '</div>';
-            list.innerHTML = html;
-
-            // Attach event handlers after rendering
-            // Populate NOAA device selector and restore saved selections
-            var noaaDevSel = document.getElementById('noaa-tab-device');
-            if (noaaDevSel) {
-                fetch('/api/devices').then(function(r) { return r.json(); }).then(function(devs) {
-                    noaaDevSel.innerHTML = '<option value="-1">Device</option>';
-                    (devs || []).forEach(function(d) {
-                        noaaDevSel.innerHTML += '<option value="' + d.index + '">Dev ' + d.index + '</option>';
-                    });
-                    noaaDevSel.value = savedNOAADevice;
-                }).catch(function() {});
-            }
-
-            // Restore saved values
-            var nwrFreqEl = document.getElementById('nwr-freq');
-            if (nwrFreqEl) nwrFreqEl.value = savedNWRFreq;
-            var noaaSatEl = document.getElementById('noaa-tab-sat');
-            if (noaaSatEl) noaaSatEl.value = savedNOAASat;
-            var noaaDurEl = document.getElementById('noaa-tab-dur');
-            if (noaaDurEl) noaaDurEl.value = savedNOAADur;
-
-            var captureBtn = document.getElementById('noaa-tab-capture');
-            if (captureBtn) {
-                captureBtn.addEventListener('click', function() {
-                    if (noaaCaptureRunning) return;
-                    var dev = parseInt((document.getElementById('noaa-tab-device') || {}).value);
-                    if (dev < 0 || isNaN(dev)) {
-                        alert('Select a device first');
-                        return;
-                    }
-                    var sel = document.getElementById('noaa-tab-sat');
-                    var freq = parseFloat(sel.value);
-                    var name = sel.options[sel.selectedIndex].getAttribute('data-name');
-                    var dur = parseInt(document.getElementById('noaa-tab-dur').value) || 900;
-
-                    noaaCaptureRunning = true;
-                    captureBtn.textContent = 'Capturing...';
-                    captureBtn.classList.add('noaa-btn-active');
-
-                    fetch('/api/noaa/capture', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ satellite: name, frequency: freq, duration: dur, device: dev })
-                    }).then(function(r) { return r.json(); }).then(function() {
-                        setTimeout(function() {
-                            noaaCaptureRunning = false;
-                            renderNOAAPanel();
-                        }, (dur + 10) * 1000);
-                    });
-                });
-            }
-
-            var autoBtn = document.getElementById('noaa-tab-auto');
-            if (autoBtn) {
-                autoBtn.addEventListener('click', function() {
-                    if (noaaRunning) {
-                        fetch('/api/stop', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ module: 'noaa' })
-                        }).then(function() { setTimeout(renderNOAAPanel, 500); });
-                    } else {
-                        var dev = parseInt((document.getElementById('noaa-tab-device') || {}).value);
-                        if (dev < 0 || isNaN(dev)) {
-                            alert('Select a device first');
-                            return;
-                        }
-                        fetch('/api/start', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ module: 'noaa', device: dev })
-                        }).then(function() { setTimeout(renderNOAAPanel, 500); });
-                    }
-                });
-            }
-            // ── NWR button handlers ──
-            var nwrListen = document.getElementById('nwr-listen');
-            var nwrStopBtn = document.getElementById('nwr-stop');
-            var nwrScanBtn = document.getElementById('nwr-scan');
-
-            if (nwrListen) {
-                // Check if already listening
-                fetch('/api/noaa/radio/status')
-                    .then(function(r) { return r.json(); })
-                    .then(function(st) {
-                        if (st.active) {
-                            nwrListen.style.display = 'none';
-                            nwrStopBtn.style.display = '';
-                            var statusLine = document.getElementById('nwr-status-line');
-                            if (statusLine) statusLine.innerHTML = '<span style="color:#6ee7b7">Listening: ' + st.channel + ' (' + st.signal_db.toFixed(1) + ' dB)</span>';
-                            // Start audio stream
-                            var audio = document.getElementById('nwr-audio');
-                            if (audio && !audio.src) {
-                                audio.src = '/api/noaa/radio/stream';
-                                audio.style.display = 'block';
-                                audio.style.width = '100%';
-                                audio.style.marginTop = '6px';
-                                audio.style.height = '32px';
-                            }
-                        }
-                    });
-
-                nwrListen.addEventListener('click', function() {
-                    var freq = parseFloat(document.getElementById('nwr-freq').value);
-                    var dev = parseInt(document.getElementById('nwr-device').value) || 0;
-                    nwrListen.textContent = 'Tuning...';
-                    nwrListen.disabled = true;
-
-                    fetch('/api/noaa/radio/start', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ frequency: freq, device: dev })
-                    }).then(function() {
-                        setTimeout(function() {
-                            nwrListen.style.display = 'none';
-                            nwrStopBtn.style.display = '';
-                            nwrListen.textContent = 'Listen';
-                            nwrListen.disabled = false;
-                            var audio = document.getElementById('nwr-audio');
-                            if (audio) {
-                                audio.src = '/api/noaa/radio/stream';
-                                audio.style.display = 'block';
-                                audio.style.width = '100%';
-                                audio.style.marginTop = '6px';
-                                audio.style.height = '32px';
-                            }
-                            renderNOAAPanel();
-                        }, 1500);
-                    });
-                });
-            }
-
-            if (nwrStopBtn) {
-                nwrStopBtn.addEventListener('click', function() {
-                    fetch('/api/noaa/radio/stop', { method: 'POST' }).then(function() {
-                        nwrStopBtn.style.display = 'none';
-                        nwrListen.style.display = '';
-                        var audio = document.getElementById('nwr-audio');
-                        if (audio) { audio.src = ''; audio.style.display = 'none'; }
+        if (nwrListen) {
+            fetch('/api/noaa/radio/status')
+                .then(function(r) { return r.json(); })
+                .then(function(st) {
+                    if (st.active) {
+                        nwrListen.style.display = 'none';
+                        nwrStopBtn.style.display = '';
                         var statusLine = document.getElementById('nwr-status-line');
-                        if (statusLine) statusLine.innerHTML = '';
-                    });
-                });
-            }
-
-            if (nwrScanBtn) {
-                nwrScanBtn.addEventListener('click', function() {
-                    var dev = parseInt(document.getElementById('nwr-device').value) || 0;
-                    nwrScanBtn.textContent = 'Scanning...';
-                    nwrScanBtn.disabled = true;
-                    var resultsDiv = document.getElementById('nwr-scan-results');
-
-                    fetch('/api/noaa/radio/scan', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ device: dev })
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(results) {
-                        nwrScanBtn.textContent = 'Scan All';
-                        nwrScanBtn.disabled = false;
-                        if (resultsDiv && results) {
-                            var scanHtml = '<div style="margin-top:8px">';
-                            results.forEach(function(ch) {
-                                var barWidth = Math.max(0, Math.min(100, (ch.signal_db + 50) * 2));
-                                var color = ch.active ? '#6ee7b7' : '#334155';
-                                scanHtml += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px">' +
-                                    '<span style="width:35px;color:#94a3b8">' + ch.station.name + '</span>' +
-                                    '<span style="width:55px;color:#64748b">' + ch.station.freq.toFixed(3) + '</span>' +
-                                    '<div style="flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden">' +
-                                        '<div style="width:' + barWidth + '%;height:100%;background:' + color + ';border-radius:4px"></div>' +
-                                    '</div>' +
-                                    '<span style="width:45px;text-align:right;color:' + (ch.active ? '#6ee7b7' : '#64748b') + '">' +
-                                        ch.signal_db.toFixed(1) + ' dB</span>' +
-                                '</div>';
-                            });
-                            scanHtml += '</div>';
-                            resultsDiv.innerHTML = scanHtml;
+                        if (statusLine) statusLine.innerHTML = '<span style="color:#6ee7b7">Listening: ' + st.channel + ' (' + st.signal_db.toFixed(1) + ' dB)</span>';
+                        var audio = document.getElementById('nwr-audio');
+                        if (audio && !audio.src) {
+                            audio.src = '/api/noaa/radio/stream';
+                            audio.style.display = 'block';
+                            audio.style.width = '100%';
+                            audio.style.marginTop = '6px';
+                            audio.style.height = '32px';
                         }
-                    })
-                    .catch(function() {
-                        nwrScanBtn.textContent = 'Scan All';
-                        nwrScanBtn.disabled = false;
-                    });
+                    }
                 });
-            }
 
-        }).catch(function() {
-            list.innerHTML = '<div style="padding:16px;color:#64748b">Error loading NOAA data</div>';
-        });
+            nwrListen.addEventListener('click', function() {
+                var freq = parseFloat(document.getElementById('nwr-freq').value);
+                var dev = parseInt(document.getElementById('nwr-device').value) || 0;
+                nwrListen.textContent = 'Tuning...';
+                nwrListen.disabled = true;
+                fetch('/api/noaa/radio/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ frequency: freq, device: dev })
+                }).then(function() {
+                    setTimeout(function() {
+                        nwrListen.style.display = 'none';
+                        nwrStopBtn.style.display = '';
+                        nwrListen.textContent = 'Listen';
+                        nwrListen.disabled = false;
+                        var audio = document.getElementById('nwr-audio');
+                        if (audio) {
+                            audio.src = '/api/noaa/radio/stream';
+                            audio.style.display = 'block';
+                            audio.style.width = '100%';
+                            audio.style.marginTop = '6px';
+                            audio.style.height = '32px';
+                        }
+                        renderNOAAPanel();
+                    }, 1500);
+                });
+            });
+        }
+
+        if (nwrStopBtn) {
+            nwrStopBtn.addEventListener('click', function() {
+                fetch('/api/noaa/radio/stop', { method: 'POST' }).then(function() {
+                    var audio = document.getElementById('nwr-audio');
+                    if (audio) { audio.pause(); audio.src = ''; audio.style.display = 'none'; }
+                    renderNOAAPanel();
+                });
+            });
+        }
+
+        if (nwrScanBtn) {
+            nwrScanBtn.addEventListener('click', function() {
+                var dev = parseInt(document.getElementById('nwr-device').value) || 0;
+                nwrScanBtn.textContent = 'Scanning...';
+                nwrScanBtn.disabled = true;
+                fetch('/api/noaa/radio/scan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device: dev })
+                }).then(function(r) { return r.json(); }).then(function(results) {
+                    nwrScanBtn.textContent = 'Scan All';
+                    nwrScanBtn.disabled = false;
+                    var box = document.getElementById('nwr-scan-results');
+                    if (!box) return;
+                    box.innerHTML = (results || []).map(function(c) {
+                        var color = c.active ? '#6ee7b7' : '#64748b';
+                        return '<div style="font-size:11px;color:' + color + ';padding:2px 0">' +
+                            c.name + ' — ' + c.frequency_mhz.toFixed(3) + ' MHz · ' +
+                            c.signal_db.toFixed(1) + ' dB' +
+                            (c.active ? ' · ACTIVE' : '') +
+                        '</div>';
+                    }).join('');
+                });
+            });
+        }
     }
 
     // Refresh NOAA tab every 10 seconds when active

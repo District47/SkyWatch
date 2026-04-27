@@ -59,11 +59,9 @@ async def _bootstrap(args: Args, manager: Manager) -> None:
         except Exception as e:
             log.warning("auto-start remoteid failed: %s", e)
 
-    # NOAA satellite tracker (always on; uses (0,0) until UI sets observer).
-    try:
-        await manager.start_noaa_tracker(0.0, 0.0)
-    except Exception as e:
-        log.warning("noaa tracker start failed: %s", e)
+    # NOAA satellite tracking is disabled — the dashboard no longer uses it
+    # and the periodic Celestrak polling was just log noise. NWR weather radio
+    # and weather.gov alerts still run.
 
     # APRS-IS gateway.
     if args.aprs_is:
