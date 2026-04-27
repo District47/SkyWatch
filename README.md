@@ -1,56 +1,84 @@
-# SkyWatch (Python)
+# SkyWatch
 
 Unified SDR monitoring tool — tracks **aircraft** (ADS-B), **ships** (AIS), **drones** (Remote ID), and amateur **APRS** stations, plus receives **NOAA** weather satellites and weather radio. Real-time map dashboard at `http://localhost:8080`.
 
-This is a 1:1 Python port of the Go implementation on the `go-rewrite` branch. All CLI flags, REST routes, WebSocket message shapes, dialed-in RF constants, and timeouts match the Go version so existing setups keep working.
+![Dashboard with vessels and detail panel](docs/screenshots/dashboard-vessels.png)
+![Aircraft view with OpenSky online feed](docs/screenshots/dashboard-aircraft.png)
+![Status bar](docs/screenshots/status-bar.png)
+
+This is a Python port of the previous Go implementation (preserved on the [`go-rewrite`](https://github.com/District47/SkyWatch/tree/go-rewrite) branch) and the original PyQt build (preserved on [`pyqt-archive`](https://github.com/District47/SkyWatch/tree/pyqt-archive)). All CLI flags, REST routes, WebSocket message shapes, dialed-in RF constants, and timeouts match the Go version so existing setups keep working.
+
+## What it does
+
+- **ADS-B** — track aircraft via `readsb` + RTL-SDR, or pull live data from the OpenSky Network with no hardware required.
+- **AIS** — track vessels via `rtl_ais` + RTL-SDR, or live from aisstream.io.
+- **Drone Remote ID** — sniff WiFi beacons / probe-responses for the ASTM F3411 vendor-specific IE (drones broadcasting their position over WiFi).
+- **APRS** — connect to APRS-IS over the internet and view stations / messages on the map; transmit beacons, messages, and status with your callsign + passcode.
+- **NOAA satellites** — predict NOAA-15/18/19 passes (SGP4 + Celestrak TLEs) and capture APT imagery via `rtl_fm` + RTL-SDR.
+- **NOAA Weather Radio** — listen to NWR (162.4–162.55 MHz) live in the browser, scan all 7 channels, see all transmitter locations.
+- **weather.gov** — pull active alerts and forecasts for the visible area.
+
+The dashboard is one page; tabs on the right side filter the map and right pane to All / Aircraft / Vessels / Drones / APRS / NOAA. Clicking a target shows its full record.
 
 ## What runs where
 
 | Capability | Linux | macOS | Windows |
 |---|---|---|---|
-| ADS-B (`readsb` + RTL-SDR) | ✅ | ✅ | ✅ (with WinUSB driver via Zadig) |
-| AIS (`rtl_ais` + RTL-SDR) | ✅ | ✅ | ✅ (with WinUSB driver via Zadig) |
-| OpenSky / aisstream.io online feeds | ✅ | ✅ | ✅ |
-| NOAA satellite tracking (SGP4) | ✅ | ✅ | ✅ |
-| NOAA APT image capture (`rtl_fm`) | ✅ | ✅ | ✅ |
-| NOAA Weather Radio (`rtl_fm`) | ✅ | ✅ | ✅ |
-| Drone Remote ID (WiFi monitor mode) | ✅ | ✅ (compatible USB adapter) | ✅ (Npcap + compatible USB adapter, e.g. Alfa AWUS036ACH/NHA) |
-| APRS-IS gateway | ✅ | ✅ | ✅ |
-| weather.gov forecasts/alerts | ✅ | ✅ | ✅ |
+| ADS-B (`readsb` + RTL-SDR) | yes | yes | yes (WinUSB driver via Zadig) |
+| AIS (`rtl_ais` + RTL-SDR) | yes | yes | yes (WinUSB driver via Zadig) |
+| OpenSky / aisstream.io online feeds | yes | yes | yes |
+| NOAA satellite tracking (SGP4) | yes | yes | yes |
+| NOAA APT image capture (`rtl_fm`) | yes | yes | yes |
+| NOAA Weather Radio (`rtl_fm`) | yes | yes | yes |
+| Drone Remote ID (WiFi monitor mode) | yes | yes (compatible USB adapter) | yes (Npcap + compatible USB adapter, e.g. Alfa AWUS036ACH/NHA) |
+| APRS-IS gateway | yes | yes | yes |
+| weather.gov forecasts/alerts | yes | yes | yes |
 
 ## Quick start
 
 ```bash
-# from the project root (C:\Users\Owner\projects\SkyWatch-py on Windows)
+# from the project root
 pip install -r requirements.txt
 python -m skywatch -addr :8080
 ```
 
-PowerShell one-liner:
+PowerShell:
 
 ```powershell
-cd C:\Users\Owner\projects\SkyWatch-py; pip install -r requirements.txt; if ($?) { python -m skywatch -addr :8080 }
+cd C:\path\to\SkyWatch
+pip install -r requirements.txt
+python -m skywatch -addr :8080
 ```
 
-Open `http://localhost:8080` and use the dashboard to start modules. Or auto-start everything via flags:
+Open `http://localhost:8080`. From the dashboard:
+
+- Click **Settings → Aircraft** and pick a source. **Online (OpenSky)** needs no hardware — pan/zoom the map first, then click **Start** and only aircraft in your visible area will be polled (every 10 s, free-tier rate-limited).
+- **Vessels** works the same way: choose **Online (AISStream)** after saving an aisstream.io key in **Settings → API Keys**, or pick an RTL-SDR device for `rtl_ais`.
+- **NOAA** tab has Listen / Scan All for weather radio and a satellite capture launcher.
+
+To auto-start everything via flags:
 
 ```bash
 # 2 RTL-SDR dongles + WiFi adapter for drone-RID
 python -m skywatch -adsb-device 0 -ais-device 1 -wifi wlan0
 
-# Online-only (no hardware) — uses OpenSky + aisstream
+# Online-only (no hardware)
 python -m skywatch -aisstream-key YOURKEY
 ```
 
-See [SETUP.md](SETUP.md) for OS-specific install instructions (RTL-SDR drivers, `readsb`, `rtl_ais`, `rtl_fm`, Npcap on Windows, monitor mode).
+See [SETUP.md](SETUP.md) for OS-specific install steps (RTL-SDR drivers, `readsb`, `rtl_ais`, `rtl_fm`, Npcap).
+
+## How online feeds bound their queries
+
+The dashboard sends the visible map bounds with the `/api/start` request and on every pan/zoom (debounced 500 ms for ADS-B, 2 s for AIS). OpenSky polls only that bounding box, clamped to its 20°×30° free-tier limit. AISStream re-subscribes only when the box has shifted by ≥0.5° (the same threshold the Go version used to avoid spamming aisstream.io with rapid resubs).
 
 ## CLI flags
 
-Identical to the Go version. Run `python -m skywatch -h` for the full list.
+Run `python -m skywatch -h` for the full list. Defaults match the Go version.
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `-addr` | `:8080` | dashboard listen address |
+| `-addr` | `:8080` | dashboard listen address (binds to 127.0.0.1 by default — use `-addr 0.0.0.0:8080` for LAN access) |
 | `-readsb` | `readsb` | path to readsb binary |
 | `-rtl-ais` | `rtl_ais` | path to rtl_ais binary |
 | `-aisstream-key` | (empty) | aisstream.io API key |
@@ -68,14 +96,6 @@ Identical to the Go version. Run `python -m skywatch -h` for the full list.
 | `-aprs-beacon` | `false` | enable position beacon |
 | `-aprs-interval` | `10m` | beacon interval |
 
-## What's deferred to v2
-
-The Go version has a few subsystems that are heavier ports and still ship as v0 stubs here. The web API surface for these still works — the dashboard just won't get RF-side decodes until they land:
-
-- **APRS RF demod** (Bell-202 AFSK + HDLC + AX.25) — IS-gateway path is fully working; an RTL-SDR-based packet receiver is the next module.
-- **APRS UV-Pro Bluetooth TNC** — TX path through APRS-IS works; UV-Pro KISS framing is stubbed.
-- **APT image geometric correction** — capture + sync detection + grayscale image work; Doppler / earth-curvature correction is on the roadmap.
-
 ## Architecture
 
 ```
@@ -92,3 +112,45 @@ The Go version has a few subsystems that are heavier ports and still ship as v0 
        APRS-IS / Celestrak │             │
        weather.gov         └─────────────┘
 ```
+
+## Project layout
+
+```
+skywatch/
+├── __main__.py        entry point
+├── cli.py             argparse — all flags from the Go main
+├── tracker.py         unified target store
+├── sdr.py             RTL-SDR enumeration
+├── adsb/              readsb + SBS parser, OpenSky, aircraft DB, classifier
+├── ais/               rtl_ais + NMEA, aisstream.io, ship-type/MMSI tables
+├── aprs/              IS gateway, parser (uncompressed + base-91 compressed),
+│                      station + message store, beacon/message TX
+├── noaa/              SGP4 tracker, APT capture, NWR weather radio,
+│                      weather.gov client
+├── remoteid/          scapy WiFi sniffer + ASTM F3411 parser
+├── web/
+│   ├── server.py      FastAPI app + REST routes + WebSocket
+│   ├── manager.py     module lifecycle
+│   └── static/        dashboard (HTML + Leaflet + custom JS)
+└── util/geo.py        bounding-box helpers
+```
+
+## What's deferred to v2
+
+The Go version has a few subsystems that are heavier ports and still ship as v0 stubs here. The web API surface for these works — the dashboard just won't get RF-side decodes until they land:
+
+- **APRS RF demod** (Bell-202 AFSK + HDLC + AX.25). The IS-gateway path is fully working; an RTL-SDR-based packet receiver is the next module.
+- **APRS UV-Pro Bluetooth TNC.** TX path through APRS-IS works; UV-Pro KISS framing is stubbed.
+- **APT image geometric correction.** Capture + sync detection + grayscale image work; Doppler / earth-curvature correction is on the roadmap.
+
+## Branches
+
+| Branch | Contents |
+|---|---|
+| `main` | This Python rewrite (current). |
+| `go-rewrite` | Previous Go implementation. |
+| `pyqt-archive` | Original PyQt desktop build. |
+
+## License
+
+MIT.

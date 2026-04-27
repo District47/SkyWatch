@@ -87,8 +87,16 @@ python -c "from scapy.all import get_if_list; print(get_if_list())"
 
 ```bash
 python -m skywatch -version
-python -m skywatch  # opens http://localhost:8080
+python -m skywatch  # binds 127.0.0.1:8080 by default
 ```
+
+To expose the dashboard on the LAN (so a phone on the same WiFi can see it):
+
+```bash
+python -m skywatch -addr 0.0.0.0:8080
+```
+
+The first time you do this, Windows Firewall will prompt — allow Python.
 
 If `readsb` / `rtl_ais` / `rtl_fm` aren't on PATH you can pass full paths:
 
