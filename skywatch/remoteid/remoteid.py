@@ -56,32 +56,35 @@ class RemoteIDConfig:
 
 
 def list_wifi_interfaces() -> list[dict]:
-    """Return all network interfaces, with a guess at which are wireless.
+    """Return all network interfaces with their friendly names + wireless guess.
 
-    Uses scapy's `conf.ifaces` so we get the human-readable name (e.g.
-    "Edimax Wi-Fi N150") plus the platform-specific value to pass back to
-    scapy/Npcap (e.g. `\\Device\\NPF_{GUID}` on Windows, `wlan0` on Linux).
+    Tries scapy's `conf.ifaces` (gives nice names + Windows GUID device path),
+    then falls back to `get_if_list()` if scapy didn't populate ifaces yet.
     """
     out: list[dict] = []
-    try:
-        from scapy.config import conf  # type: ignore
-    except Exception:
-        return out
-    try:
-        ifaces = list(conf.ifaces.values())
-    except Exception:
-        return out
-
     wifi_kw = ("wi-fi", "wifi", "wireless", "wlan", "802.11", "wlp", "wlx", "ath", "rtl", "alfa")
+
+    # Path 1: scapy's high-level interface objects (best names).
+    try:
+        from scapy.all import conf  # type: ignore  # noqa: F401  triggers init
+        ifaces = list(conf.ifaces.values())
+    except Exception as e:
+        log.debug("scapy conf.ifaces unavailable: %s", e)
+        ifaces = []
+
+    seen: set[str] = set()
     for iface in ifaces:
         try:
-            description = (getattr(iface, "description", None) or getattr(iface, "name", "") or "").strip()
-            # The "name to pass to scapy/Npcap" varies per platform. Prefer
-            # network_name when set (Windows = \Device\NPF_{...}); otherwise
-            # fall back to .name (Linux = wlan0, macOS = en0).
-            scapy_name = getattr(iface, "network_name", None) or getattr(iface, "name", "")
-            if not scapy_name:
+            description = (getattr(iface, "description", None)
+                           or getattr(iface, "name", "")
+                           or "").strip()
+            # Prefer the OS-level handle that scapy/Npcap will accept.
+            scapy_name = (getattr(iface, "network_name", None)
+                          or getattr(iface, "name", "")
+                          or "").strip()
+            if not scapy_name or scapy_name in seen:
                 continue
+            seen.add(scapy_name)
             blob = (description + " " + scapy_name).lower()
             wireless = any(kw in blob for kw in wifi_kw)
             out.append({
@@ -91,7 +94,20 @@ def list_wifi_interfaces() -> list[dict]:
             })
         except Exception:
             continue
-    # Wireless-looking entries first.
+
+    # Path 2: fallback to raw get_if_list() if path 1 produced nothing.
+    if not out:
+        try:
+            from scapy.all import get_if_list  # type: ignore
+            for raw in get_if_list():
+                if not raw or raw in seen:
+                    continue
+                seen.add(raw)
+                wireless = any(kw in raw.lower() for kw in wifi_kw)
+                out.append({"name": raw, "description": raw, "wireless": wireless})
+        except Exception as e:
+            log.debug("get_if_list fallback failed: %s", e)
+
     out.sort(key=lambda d: (not d["wireless"], d["description"].lower()))
     return out
 
