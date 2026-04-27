@@ -44,6 +44,11 @@ class Manager:
         self.aisstream: Optional[AISStream] = None
         self.aprs_is: Optional[APRSISClient] = None
         self.remoteid: Optional[RemoteID] = None
+        # Remember the WiFi interface passed via CLI so the dashboard's
+        # Start/Stop button can restart drone-RID without needing to re-type it.
+        self.remoteid_interface: str = ""
+        self.remoteid_monitor: bool = True
+        self.remoteid_channel: int = 6
         self.noaa_tracker = NOAATracker()
         self.nwr = NWRReceiver()
         self.apt = APTCapture(APTConfig())
@@ -82,6 +87,11 @@ class Manager:
                          enabled=self.aprs_is is not None,
                          running=bool(self.aprs_is and self.aprs_is._task and not self.aprs_is._task.done())),
             ModuleStatus(name="remoteid",
+                         enabled=self.remoteid is not None,
+                         running=bool(self.remoteid and self.remoteid._task and not self.remoteid._task.done())),
+            # Frontend uses 'drone' as the module name; alias here so the
+            # Start/Stop button on the Drones tab can read its state.
+            ModuleStatus(name="drone",
                          enabled=self.remoteid is not None,
                          running=bool(self.remoteid and self.remoteid._task and not self.remoteid._task.done())),
             ModuleStatus(name="nwr",
@@ -191,6 +201,9 @@ class Manager:
             self.remoteid = RemoteID(RemoteIDConfig(
                 interface=interface, auto_monitor=monitor, channel=channel,
             ), self.tracker)
+            self.remoteid_interface = interface
+            self.remoteid_monitor = monitor
+            self.remoteid_channel = channel
             await self.remoteid.start()
 
     async def stop_remoteid(self) -> None:

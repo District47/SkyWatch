@@ -209,10 +209,18 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             if not key:
                 return JSONResponse({"error": "aisstream API key not configured"}, status_code=400)
             await manager.start_aisstream(api_key=key)
-        elif module == "remoteid":
-            iface = body.get("interface", "")
-            monitor = bool(body.get("monitor", True))
-            channel = int(body.get("channel", 6))
+        elif module in ("remoteid", "drone"):
+            # Frontend sends module='drone' from the Drones tab. Reuse the WiFi
+            # interface the user originally passed via -wifi (cached on manager)
+            # if the request doesn't include one.
+            iface = body.get("interface") or manager.remoteid_interface
+            if not iface:
+                return JSONResponse(
+                    {"error": "no WiFi interface configured (start the server with -wifi <iface>)"},
+                    status_code=400,
+                )
+            monitor = bool(body.get("monitor", manager.remoteid_monitor))
+            channel = int(body.get("channel", manager.remoteid_channel))
             await manager.start_remoteid(iface, monitor, channel)
         elif module == "noaa":
             # Frontend uses this for the NOAA auto-capture daemon. The tracker
@@ -236,7 +244,7 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             await manager.stop_opensky()
         elif module == "aisstream":
             await manager.stop_aisstream()
-        elif module == "remoteid":
+        elif module in ("remoteid", "drone"):
             await manager.stop_remoteid()
         elif module == "noaa":
             return {"ok": True}
