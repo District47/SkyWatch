@@ -316,6 +316,21 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             "current": manager.remoteid_interface or "",
         }
 
+    @app.get("/api/remoteid/stats")
+    async def api_remoteid_stats():
+        if manager.remoteid is None:
+            return {"running": False}
+        r = manager.remoteid
+        return {
+            "running": bool(r._task and not r._task.done()),
+            "interface": r.cfg.interface,
+            "frames_total": r.frames_total,
+            "frames_mgmt": r.frames_mgmt,
+            "frames_rid": r.frames_rid,
+            "last_frame_at": r.last_frame_at,
+            "last_rid_at": r.last_rid_at,
+        }
+
     # ---- Alert zones ----
 
     @app.get("/api/alerts/zones")

@@ -852,8 +852,35 @@
             });
     }
 
+    function loadDroneStats() {
+        var box = document.getElementById('drone-stats');
+        if (!box) return;
+        fetch('/api/remoteid/stats')
+            .then(function(r) { return r.json(); })
+            .then(function(s) {
+                if (!s.running) {
+                    box.innerHTML = '<span style="color:#64748b">Sniffer not running.</span>';
+                    return;
+                }
+                var lastF = s.last_frame_at ? Math.round(Date.now()/1000 - s.last_frame_at) + 's ago' : 'never';
+                var lastR = s.last_rid_at ? Math.round(Date.now()/1000 - s.last_rid_at) + 's ago' : 'never';
+                var stale = (s.frames_total === 0 || (s.last_frame_at && Date.now()/1000 - s.last_frame_at > 30));
+                var packetColor = stale ? '#fca5a5' : '#6ee7b7';
+                var ridColor = (s.frames_rid > 0) ? '#6ee7b7' : '#fbbf24';
+                box.innerHTML =
+                    '<div style="color:' + packetColor + '">📡 Frames: ' + s.frames_total +
+                        ' <span style="color:#64748b">(mgmt ' + s.frames_mgmt + ', last ' + lastF + ')</span></div>' +
+                    '<div style="color:' + ridColor + ';margin-top:2px">🛸 Drone RID frames: ' + s.frames_rid +
+                        ' <span style="color:#64748b">(last ' + lastR + ')</span></div>' +
+                    (s.frames_total === 0 ? '<div style="color:#fca5a5;margin-top:4px">No packets yet — adapter may not support monitor mode on this OS.</div>' : '') +
+                    (s.frames_total > 0 && s.frames_mgmt === 0 ? '<div style="color:#fbbf24;margin-top:4px">Packets flowing but none look like beacons. Adapter may not be in true monitor mode.</div>' : '');
+            })
+            .catch(function() {});
+    }
+
     function loadDroneStatus() {
         loadDroneInterfaces();
+        loadDroneStats();
         fetch('/api/status')
             .then(function(r) { return r.json(); })
             .then(function(statuses) {
@@ -1333,6 +1360,11 @@
             loadStatus();
         }
     }, 5000);
+
+    // Refresh the drone-RID counters every 3s while the Drones tab is active.
+    setInterval(function() {
+        if (activeFilter === 'drone') loadDroneStats();
+    }, 3000);
 
     // ══════════════════════════════════════
     // ── NOAA satellite live tracking removed (was log noise; tracker disabled).

@@ -187,6 +187,13 @@ class RemoteID:
         self._stop = asyncio.Event()
         self._task: Optional[asyncio.Task] = None
         self._states: dict[str, _DroneState] = {}
+        # Counters surfaced by the dashboard / log so users can verify the
+        # sniffer is actually receiving traffic.
+        self.frames_total = 0
+        self.frames_mgmt = 0   # beacons + probe responses (the kind we care about)
+        self.frames_rid = 0    # ones containing an Open Drone ID vendor IE
+        self.last_frame_at = 0.0
+        self.last_rid_at = 0.0
 
     async def start(self) -> None:
         if not self.cfg.interface:
@@ -236,19 +243,34 @@ class RemoteID:
             log.error("scapy unavailable: %s", e)
             return
 
+        import time as _time
+        last_log = _time.monotonic()
+
         def handler(pkt) -> None:
+            nonlocal last_log
+            self.frames_total += 1
+            self.last_frame_at = _time.time()
             try:
                 if not (pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp)):
                     return
+                self.frames_mgmt += 1
                 elt = pkt.getlayer(Dot11Elt)
                 while elt is not None:
                     if elt.ID == _IE_VENDOR_SPECIFIC and bytes(elt.info)[:3] == _VENDOR_OUI:
+                        self.frames_rid += 1
+                        self.last_rid_at = _time.time()
                         body = bytes(elt.info)[3:]
                         for msg_type, sub in parse_remote_id_ie(body):
                             self._ingest_message(msg_type, sub)
                     elt = elt.payload.getlayer(Dot11Elt) if elt.payload else None
             except Exception as e:
                 log.debug("RID parse error: %s", e)
+            # Heartbeat so the user can see the sniffer is alive.
+            now = _time.monotonic()
+            if (now - last_log) >= 15.0:
+                log.info("remoteid sniff: %d frames (%d mgmt, %d Drone-RID) on %s",
+                         self.frames_total, self.frames_mgmt, self.frames_rid, self.cfg.interface)
+                last_log = now
 
         try:
             sniff(iface=self.cfg.interface, prn=handler, store=False, stop_filter=lambda _p: self._stop.is_set())
