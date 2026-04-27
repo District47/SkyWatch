@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from ..tracker import Tracker, Target
 from ..sdr import list_devices
 from ..adsb import AircraftDB
-from ..ais import AISStream
+from ..ais import AISStream, lookup_vessel_photo
 from ..aprs import APRSStore, APRSISConfig, compute_passcode, build_position_beacon, build_message
 from ..aprs.tx import build_status
 from ..noaa import NOAA_SATELLITES, NWR_TRANSMITTERS
@@ -98,7 +98,7 @@ class WebSocketHub:
 
 
 def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
-              static_dir: Path, args=None) -> FastAPI:
+              alerts=None, static_dir: Path, args=None) -> FastAPI:
     app = FastAPI(title="SkyWatch", version="1.0.0")
     hub = WebSocketHub()
     api_keys: dict = _load_api_keys()
@@ -109,11 +109,20 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         targets = await tracker.snapshot()
         stations = await aprs_store.stations()
         messages = await aprs_store.messages()
-        return {
+        snap = {
             "targets": [t.to_json() for t in targets],
             "aprs": [s.to_json() for s in stations],
             "messages": [m.to_json() for m in messages],
         }
+        if alerts is not None:
+            snap["alert_zones"] = [z.to_json() for z in await alerts.list_zones()]
+            snap["alert_events"] = [e.to_json() for e in await alerts.events()]
+        return snap
+
+    if alerts is not None:
+        # When an alert fires, mark the WS dirty so the new event ships out
+        # to clients on the next broadcast tick.
+        alerts.set_event_callback(lambda _ev: hub.mark_dirty())
 
     @app.on_event("startup")
     async def _startup() -> None:
@@ -267,6 +276,11 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
 
     # ---- AIS ----
 
+    @app.get("/api/vessel/photo")
+    async def api_vessel_photo(name: str = ""):
+        result = await lookup_vessel_photo(name)
+        return result.to_json()
+
     @app.post("/api/ais/bounds")
     async def api_ais_bounds(req: Request):
         body = await req.json()
@@ -283,6 +297,45 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         if manager.aisstream:
             await manager.aisstream.set_bounds(lat, lon, radius)
         return {"ok": True, "lat": lat, "lon": lon, "radius_km": radius}
+
+    # ---- Alert zones ----
+
+    @app.get("/api/alerts/zones")
+    async def api_alert_zones():
+        if alerts is None:
+            return []
+        return [z.to_json() for z in await alerts.list_zones()]
+
+    @app.post("/api/alerts/zones")
+    async def api_alert_zones_create(req: Request):
+        if alerts is None:
+            raise HTTPException(503, "alerts not configured")
+        body = await req.json()
+        zone = await alerts.add_zone(
+            name=body.get("name", ""),
+            lat=float(body.get("lat", 0.0)),
+            lon=float(body.get("lon", 0.0)),
+            radius_km=float(body.get("radius_km", 5.0)),
+            target_types=body.get("target_types") or ["aircraft"],
+            category_filter=body.get("category_filter", ""),
+            callsign_filter=body.get("callsign_filter", ""),
+        )
+        return zone.to_json()
+
+    @app.delete("/api/alerts/zones/{zone_id}")
+    async def api_alert_zones_delete(zone_id: str):
+        if alerts is None:
+            raise HTTPException(503, "alerts not configured")
+        ok = await alerts.remove_zone(zone_id)
+        if not ok:
+            raise HTTPException(404, "zone not found")
+        return {"ok": True}
+
+    @app.get("/api/alerts/events")
+    async def api_alert_events():
+        if alerts is None:
+            return []
+        return [e.to_json() for e in await alerts.events()]
 
     # ---- APRS ----
 
@@ -419,8 +472,13 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
     async def api_weather(lat: Optional[float] = None, lon: Optional[float] = None,
                           state: str = "", wfo: str = ""):
         alerts = await fetch_alerts(lat=lat, lon=lon, state=state, wfo=wfo)
-        forecast = await fetch_forecast(lat, lon) if (lat is not None and lon is not None) else []
-        return {"alerts": alerts, "forecast": forecast}
+        forecast_periods = await fetch_forecast(lat, lon) if (lat is not None and lon is not None) else []
+        # The dashboard expects the raw weather.gov shapes: alerts.features and
+        # forecast.properties.periods. Re-wrap accordingly.
+        return {
+            "alerts": {"features": alerts},
+            "forecast": {"properties": {"periods": forecast_periods}},
+        }
 
     # ---- Config / API keys ----
 

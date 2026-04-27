@@ -20,7 +20,18 @@ class NWRTransmitter:
     status: str
 
     def to_json(self) -> dict:
-        return asdict(self)
+        # Frontend (legacy from the Go server) reads `frequency` and `power`,
+        # so emit both shapes for compatibility.
+        return {
+            "callsign": self.callsign,
+            "frequency": self.frequency_mhz,
+            "frequency_mhz": self.frequency_mhz,
+            "lat": self.lat, "lon": self.lon,
+            "name": self.name, "location": self.location, "state": self.state,
+            "power": self.power_watts,
+            "power_watts": self.power_watts,
+            "wfo": self.wfo, "status": self.status,
+        }
 
 
 def load_stations(csv_path: Path = Path("data/nwr_stations.csv")) -> list[NWRTransmitter]:

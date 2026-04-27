@@ -316,6 +316,8 @@
                 targets = data.targets || [];
                 aprsStations = data.aprs || [];
                 aprsMessages = data.messages || [];
+                if (data.alert_zones) handleAlertZonesPayload(data.alert_zones);
+                if (data.alert_events) handleAlertEventsPayload(data.alert_events);
                 updateAll();
                 if (activeFilter === 'aprs') updateAPRSMessages();
             } catch(e) {
@@ -600,6 +602,27 @@
         if (t.drone_id) rows.push(detailRow('Drone ID', t.drone_id));
         if (t.messages) rows.push(detailRow('Messages', t.messages));
         if (t.last_seen) rows.push(detailRow('Last Seen', new Date(t.last_seen).toLocaleTimeString()));
+
+        // Best-effort Wikipedia photo lookup for vessels — appended after
+        // initial render so the UI doesn't block on the network round-trip.
+        if (t.type === 'vessel' && t.ship_name) {
+            var photoSlotId = 'vessel-photo-' + (t.mmsi || t.ship_name).replace(/[^A-Za-z0-9]/g, '');
+            rows.unshift('<div id="' + photoSlotId + '" class="vessel-photo-slot"></div>');
+            setTimeout(function() {
+                fetch('/api/vessel/photo?name=' + encodeURIComponent(t.ship_name))
+                    .then(function(r) { return r.json(); })
+                    .then(function(p) {
+                        var slot = document.getElementById(photoSlotId);
+                        if (!slot || !p || !p.thumbnail) return;
+                        slot.innerHTML =
+                            '<a href="' + p.page_url + '" target="_blank" rel="noopener">' +
+                            '<img src="' + p.thumbnail + '" alt="' + (p.title || t.ship_name) + '" ' +
+                            'style="max-width:100%;border-radius:6px;display:block;margin:0 0 8px"/></a>' +
+                            (p.description ? '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px">' + p.description + '</div>' : '');
+                    })
+                    .catch(function() {});
+            }, 0);
+        }
 
         // External links for vessels
         if (t.type === 'vessel' && t.mmsi) {
@@ -2368,6 +2391,163 @@
             });
         });
     }
+
+    // ── Alert zones ──
+    var alertZones = [];
+    var alertZoneLayer = L.layerGroup().addTo(map);
+    var seenAlertEventIds = new Set();
+    var alertAddState = null; // { lat, lon } once user clicks the map
+
+    function handleAlertZonesPayload(zones) {
+        alertZones = zones || [];
+        renderAlertZonesList();
+        renderAlertZonesOnMap();
+    }
+
+    function handleAlertEventsPayload(events) {
+        (events || []).forEach(function(ev) {
+            if (seenAlertEventIds.has(ev.id)) return;
+            seenAlertEventIds.add(ev.id);
+            // First connection: don't toast historical events.
+            if (seenAlertEventIds.size === (events || []).length) {
+                return;
+            }
+            showAlertToast(ev);
+        });
+    }
+
+    function renderAlertZonesOnMap() {
+        alertZoneLayer.clearLayers();
+        alertZones.forEach(function(z) {
+            var circle = L.circle([z.lat, z.lon], {
+                radius: z.radius_km * 1000,
+                color: '#f59e0b', weight: 1.5,
+                fillColor: '#f59e0b', fillOpacity: 0.08,
+            }).bindTooltip(z.name + ' — ' + z.radius_km + ' km' +
+                (z.category_filter ? ' (' + z.category_filter + ')' : ''));
+            alertZoneLayer.addLayer(circle);
+        });
+    }
+
+    function renderAlertZonesList() {
+        var el = document.getElementById('alert-zones-list');
+        if (!el) return;
+        if (!alertZones.length) {
+            el.innerHTML = '<div style="color:#64748b">No zones. Click + Add to create one.</div>';
+            return;
+        }
+        el.innerHTML = alertZones.map(function(z) {
+            var label = (z.category_filter || 'any') + (z.callsign_filter ? ' · ' + z.callsign_filter : '');
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">' +
+                '<div style="flex:1;min-width:0">' +
+                    '<div style="color:#e0e6ed;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(z.name) + '</div>' +
+                    '<div style="font-size:10px;color:#64748b">' + z.radius_km + ' km · ' + escHtml(label) + '</div>' +
+                '</div>' +
+                '<button data-zone-id="' + z.id + '" class="alert-zone-del tx-btn-sm" style="margin-left:6px">×</button>' +
+            '</div>';
+        }).join('');
+        el.querySelectorAll('.alert-zone-del').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = btn.getAttribute('data-zone-id');
+                fetch('/api/alerts/zones/' + id, { method: 'DELETE' }).then(loadAlertZones);
+            });
+        });
+    }
+
+    function loadAlertZones() {
+        fetch('/api/alerts/zones').then(function(r) { return r.json(); })
+            .then(function(zones) { handleAlertZonesPayload(zones); }).catch(function() {});
+    }
+
+    function showAlertToast(ev) {
+        var box = document.getElementById('alert-toast-stack');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'alert-toast-stack';
+            box.style.cssText = 'position:fixed;top:60px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:6px;max-width:340px';
+            document.body.appendChild(box);
+        }
+        var when = new Date(ev.timestamp * 1000).toLocaleTimeString();
+        var card = document.createElement('div');
+        card.style.cssText = 'background:#0f172a;border:1px solid #f59e0b;border-left:4px solid #f59e0b;border-radius:6px;padding:10px 12px;color:#e0e6ed;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,0.4);cursor:pointer';
+        card.innerHTML = '<div style="font-weight:600;color:#fbbf24;margin-bottom:2px">⚠ Zone alert: ' + escHtml(ev.zone_name) + '</div>' +
+            '<div>' + escHtml(ev.callsign || ev.target_id) + ' (' + escHtml(ev.target_type) + ')</div>' +
+            '<div style="color:#94a3b8;font-size:11px;margin-top:2px">' + when + '</div>';
+        card.addEventListener('click', function() {
+            window.skywatch.select(ev.target_id);
+            box.removeChild(card);
+        });
+        box.appendChild(card);
+        setTimeout(function() { try { box.removeChild(card); } catch(e) {} }, 12000);
+        try {
+            var beep = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+            beep.play().catch(function() {});
+        } catch(e) {}
+    }
+
+    function wireAlertControls() {
+        var addBtn = document.getElementById('alert-add-btn');
+        var panel = document.getElementById('alert-add-panel');
+        var saveBtn = document.getElementById('alert-save');
+        var cancelBtn = document.getElementById('alert-cancel');
+        if (!addBtn || !panel) return;
+
+        var pickHandler = null;
+        var pickMarker = null;
+
+        function startPicking() {
+            panel.style.display = 'block';
+            saveBtn.disabled = true;
+            alertAddState = null;
+            map.getContainer().style.cursor = 'crosshair';
+            pickHandler = function(e) {
+                alertAddState = { lat: e.latlng.lat, lon: e.latlng.lng };
+                if (pickMarker) alertZoneLayer.removeLayer(pickMarker);
+                pickMarker = L.circleMarker(e.latlng, { radius: 6, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.6 });
+                alertZoneLayer.addLayer(pickMarker);
+                saveBtn.disabled = false;
+            };
+            map.on('click', pickHandler);
+        }
+
+        function stopPicking() {
+            panel.style.display = 'none';
+            map.getContainer().style.cursor = '';
+            if (pickHandler) { map.off('click', pickHandler); pickHandler = null; }
+            if (pickMarker) { alertZoneLayer.removeLayer(pickMarker); pickMarker = null; }
+            alertAddState = null;
+            document.getElementById('alert-name').value = '';
+            document.getElementById('alert-callsign').value = '';
+            document.getElementById('alert-radius').value = '5';
+            document.getElementById('alert-category').value = '';
+        }
+
+        addBtn.addEventListener('click', startPicking);
+        cancelBtn.addEventListener('click', stopPicking);
+        saveBtn.addEventListener('click', function() {
+            if (!alertAddState) return;
+            var body = {
+                name: document.getElementById('alert-name').value || ('Zone ' + (alertZones.length + 1)),
+                lat: alertAddState.lat,
+                lon: alertAddState.lon,
+                radius_km: parseFloat(document.getElementById('alert-radius').value) || 5.0,
+                target_types: ['aircraft'],
+                category_filter: document.getElementById('alert-category').value || '',
+                callsign_filter: document.getElementById('alert-callsign').value || '',
+            };
+            fetch('/api/alerts/zones', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            }).then(function(r) { return r.json(); }).then(function() {
+                stopPicking();
+                loadAlertZones();
+            });
+        });
+    }
+
+    wireAlertControls();
+    loadAlertZones();
 
     // ── Public API ──
     window.skywatch.select = selectTarget;

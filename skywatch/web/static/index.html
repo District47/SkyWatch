@@ -154,6 +154,32 @@
                     <span id="adsb-db-status" style="font-size:11px;color:#64748b;flex:1">Aircraft DB: not loaded</span>
                     <button id="adsb-db-import" class="tx-btn-sm">Import Database</button>
                 </div>
+                <div class="alert-zones-section" style="margin-top:10px;border-top:1px solid #1e293b;padding-top:8px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                        <span style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Alert Zones</span>
+                        <button id="alert-add-btn" class="tx-btn-sm">+ Add</button>
+                    </div>
+                    <div id="alert-add-panel" style="display:none;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;margin-bottom:6px">
+                        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Click a point on the map to set the zone center.</div>
+                        <input id="alert-name" placeholder="Zone name" style="width:100%;margin-bottom:4px;padding:4px 6px;background:#020617;border:1px solid #334155;border-radius:4px;color:#e0e6ed;font-size:12px"/>
+                        <div style="display:flex;gap:4px;margin-bottom:4px">
+                            <input id="alert-radius" type="number" min="0.5" step="0.5" value="5" style="width:60px;padding:4px 6px;background:#020617;border:1px solid #334155;border-radius:4px;color:#e0e6ed;font-size:12px"/>
+                            <span style="font-size:11px;color:#64748b;align-self:center">km radius</span>
+                            <select id="alert-category" style="flex:1;padding:4px 6px;background:#020617;border:1px solid #334155;border-radius:4px;color:#e0e6ed;font-size:12px">
+                                <option value="">Any aircraft</option>
+                                <option value="military">Military only</option>
+                                <option value="helicopter">Helicopters only</option>
+                                <option value="mil-helo">Military helicopters</option>
+                            </select>
+                        </div>
+                        <input id="alert-callsign" placeholder="Callsign filter (optional)" style="width:100%;margin-bottom:6px;padding:4px 6px;background:#020617;border:1px solid #334155;border-radius:4px;color:#e0e6ed;font-size:12px"/>
+                        <div style="display:flex;gap:4px">
+                            <button id="alert-save" class="tx-btn-sm" style="flex:1" disabled>Save zone</button>
+                            <button id="alert-cancel" class="tx-btn-sm" style="flex:1">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="alert-zones-list" style="font-size:11px;color:#94a3b8"></div>
+                </div>
             </div>
 
             <!-- AIS Controls (visible when Vessels tab is active) -->

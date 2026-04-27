@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Callable, Optional
+from typing import Awaitable, Callable, Optional
 
 
 TYPE_AIRCRAFT = "aircraft"
@@ -83,9 +83,15 @@ class Tracker:
         self._lock = asyncio.Lock()
         self._targets: dict[str, Target] = {}
         self._on_change: Optional[Callable[[], None]] = None
+        # Observers fired on every upsert with the merged target — used by the
+        # alert system. Sync callbacks must not block.
+        self._observers: list[Callable[[Target], Awaitable[None] | None]] = []
 
     def set_change_callback(self, cb: Callable[[], None]) -> None:
         self._on_change = cb
+
+    def add_observer(self, cb: Callable[[Target], Awaitable[None] | None]) -> None:
+        self._observers.append(cb)
 
     async def upsert(self, t: Target) -> None:
         t.last_seen = int(time.time())
@@ -94,13 +100,22 @@ class Tracker:
             if existing is None:
                 t.messages = max(t.messages, 1)
                 self._targets[t.id] = t
+                merged = t
             else:
                 _merge(existing, t)
                 existing.messages += 1
                 existing.last_seen = t.last_seen
+                merged = existing
         if self._on_change:
             try:
                 self._on_change()
+            except Exception:
+                pass
+        for cb in self._observers:
+            try:
+                result = cb(merged)
+                if result is not None and hasattr(result, "__await__"):
+                    await result
             except Exception:
                 pass
 

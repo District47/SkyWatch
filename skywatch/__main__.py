@@ -16,6 +16,7 @@ from . import __version__
 from .cli import parse, Args
 from .tracker import Tracker
 from .aprs import APRSStore, APRSISConfig
+from .alerts import AlertManager
 from .web.manager import Manager
 from .web.server import build_app
 
@@ -90,11 +91,12 @@ def main(argv: list[str] | None = None) -> int:
 
     tracker = Tracker()
     aprs_store = APRSStore()
+    alerts = AlertManager(tracker)
     manager = Manager(tracker, aprs_store)
 
     static_dir = Path(__file__).parent / "web" / "static"
     app = build_app(tracker=tracker, aprs_store=aprs_store, manager=manager,
-                    static_dir=static_dir, args=args)
+                    alerts=alerts, static_dir=static_dir, args=args)
 
     @app.on_event("startup")
     async def _bootstrap_modules() -> None:
