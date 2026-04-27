@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skywatch"
+version = "1.0.0"
+description = "Unified SDR monitoring tool for ADS-B aircraft, AIS vessels, drones (Remote ID), APRS, and NOAA weather satellites."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "District47"}]
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "websockets>=12.0",
+  "httpx>=0.27",
+  "websocket-client>=1.7",
+  "pyais>=2.6",
+  "pyModeS>=2.18",
+  "sgp4>=2.23",
+  "scapy>=2.5",
+  "bleak>=0.21",
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "Pillow>=10.0",
+  "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+audio = ["sounddevice>=0.4"]
+sdr = ["pyrtlsdr>=0.3"]
+
+[project.scripts]
+skywatch = "skywatch.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["skywatch*"]
+
+[tool.setuptools.package-data]
+skywatch = ["web/static/**/*", "web/static/aprs-symbols/*", "web/static/css/*", "web/static/js/*"]

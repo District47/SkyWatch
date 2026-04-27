@@ -1,0 +1,924 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    background: #0a0e17;
+    color: #e0e6ed;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #111827;
+    border-bottom: 1px solid #1e293b;
+    z-index: 1000;
+}
+
+#header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: 1px;
+}
+
+#stats {
+    display: flex;
+    gap: 8px;
+}
+
+.badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge.aircraft { background: #1e3a5f; color: #38bdf8; }
+.badge.vessel { background: #1a3f2e; color: #34d399; }
+.badge.drone { background: #3f1a3f; color: #e879f9; }
+.badge.aprs { background: #1a3340; color: #00aacc; }
+.badge.connected { background: #064e3b; color: #6ee7b7; }
+.badge.disconnected { background: #450a0a; color: #fca5a5; }
+
+.setup-badge {
+    background: #1e293b;
+    color: #94a3b8;
+    cursor: pointer;
+    border: 1px solid #334155;
+    transition: all 0.15s;
+}
+.setup-badge:hover { background: #334155; color: #e0e6ed; }
+
+.clear-badge {
+    background: #1e293b;
+    color: #94a3b8;
+    cursor: pointer;
+    border: 1px solid #334155;
+    transition: all 0.15s;
+}
+.clear-badge:hover { background: #450a0a; color: #fca5a5; border-color: #ef4444; }
+
+/* ── Setup Modal ── */
+#setup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.hidden { display: none !important; }
+#setup-overlay.hidden { display: none; }
+
+#setup-modal {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    width: 640px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #1e293b;
+    flex-shrink: 0;
+}
+.modal-header h2 {
+    font-size: 16px;
+    color: #38bdf8;
+}
+#close-setup {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0 4px;
+}
+#close-setup:hover { color: #e0e6ed; }
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+#devices-loading {
+    text-align: center;
+    padding: 24px;
+    color: #64748b;
+}
+
+#devices-error {
+    background: #450a0a;
+    color: #fca5a5;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+/* Device cards */
+#devices-list h3,
+#module-controls h3 {
+    font-size: 13px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+
+.device-card {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    gap: 12px;
+}
+
+.device-index {
+    width: 32px;
+    height: 32px;
+    background: #1e293b;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: #38bdf8;
+    flex-shrink: 0;
+}
+
+.device-info {
+    flex: 1;
+    min-width: 0;
+}
+.device-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e6ed;
+}
+.device-detail {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.device-status {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.device-status.available { background: #064e3b; color: #6ee7b7; }
+.device-status.in-use { background: #1e3a5f; color: #38bdf8; }
+
+/* Module assignment rows */
+#module-controls {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #1e293b;
+}
+
+.module-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #1e293b;
+    gap: 12px;
+}
+
+.module-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 160px;
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.module-icon { font-size: 18px; }
+.aircraft-color { color: #38bdf8; }
+.vessel-color { color: #34d399; }
+.drone-color { color: #e879f9; }
+.aprs-is-color { color: #00aacc; }
+.aprs-rf-color { color: #00ff9d; }
+.aprs-uvpro-color { color: #ffd166; }
+
+.device-select {
+    flex: 1;
+    padding: 6px 10px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e0e6ed;
+    font-size: 12px;
+    cursor: pointer;
+    appearance: auto;
+}
+.device-select:focus { border-color: #38bdf8; outline: none; }
+
+.module-note {
+    flex: 1;
+    font-size: 11px;
+    color: #64748b;
+    font-style: italic;
+}
+
+.module-toggle {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 70px;
+}
+
+.module-toggle.start {
+    background: #064e3b;
+    color: #6ee7b7;
+}
+.module-toggle.start:hover { background: #065f46; }
+
+.module-toggle.stop {
+    background: #450a0a;
+    color: #fca5a5;
+}
+.module-toggle.stop:hover { background: #7f1d1d; }
+
+.module-toggle:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#module-status {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #64748b;
+    min-height: 20px;
+}
+#module-status .status-msg {
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-top: 8px;
+}
+#module-status .status-ok { background: #064e3b; color: #6ee7b7; }
+#module-status .status-err { background: #450a0a; color: #fca5a5; }
+
+/* APRS TX Form */
+.aprs-tx-form {
+    margin-top: 8px;
+}
+.tx-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.tx-row label {
+    width: 70px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #64748b;
+}
+.tx-input {
+    flex: 1;
+    padding: 6px 10px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e0e6ed;
+    font-size: 12px;
+}
+.tx-input:focus { border-color: #38bdf8; outline: none; }
+.tx-btn-sm {
+    padding: 4px 10px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    color: #94a3b8;
+    font-size: 11px;
+    cursor: pointer;
+}
+.tx-btn-sm:hover { background: #334155; color: #e0e6ed; }
+.tx-value {
+    font-size: 11px;
+    color: #64748b;
+}
+#tx-status {
+    margin-top: 6px;
+    font-size: 12px;
+    min-height: 16px;
+}
+#tx-status .tx-ok { color: #6ee7b7; }
+#tx-status .tx-err { color: #fca5a5; }
+
+/* ADS-B Controls Panel */
+#adsb-controls {
+    padding: 8px;
+    border-bottom: 1px solid #1e293b;
+    background: #0f172a;
+}
+.adsb-device-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.adsb-db-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #1e293b;
+}
+
+/* APRS Controls Panel */
+#aprs-controls {
+    padding: 8px;
+    border-bottom: 1px solid #1e293b;
+    background: #0f172a;
+}
+.aprs-quick-actions {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.aprs-msg-row {
+    display: flex;
+    gap: 4px;
+}
+.aprs-msg-row .tx-input {
+    padding: 5px 8px;
+    font-size: 12px;
+}
+
+/* APRS Messages */
+#aprs-messages {
+    border-top: 1px solid #1e293b;
+    max-height: 250px;
+    overflow-y: auto;
+}
+.aprs-msg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    position: sticky;
+    top: 0;
+    background: #0f172a;
+}
+.aprs-msg-item {
+    padding: 4px 8px;
+    border-bottom: 1px solid #0d1117;
+    font-size: 11px;
+}
+.aprs-msg-item.msg-in {
+    background: #0c1a2e;
+}
+.aprs-msg-item.msg-out {
+    background: #0a1f0a;
+}
+.aprs-msg-from {
+    font-weight: 600;
+    color: #38bdf8;
+}
+.aprs-msg-to {
+    color: #64748b;
+}
+.aprs-msg-text {
+    color: #e0e6ed;
+    margin-top: 1px;
+}
+.aprs-msg-time {
+    color: #475569;
+    font-size: 10px;
+    float: right;
+}
+
+/* APRS Settings Popup */
+#aprs-settings-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#aprs-settings-overlay.hidden { display: none; }
+#aprs-settings-popup {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    width: 420px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+#aprs-settings-popup .module-row {
+    padding: 4px 0;
+    font-size: 12px;
+}
+#aprs-settings-popup .module-label {
+    min-width: 90px;
+}
+
+/* NWR Weather Popup */
+.nwr-popup { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; }
+.nwr-popup-header { display: flex; justify-content: space-between; align-items: center; }
+.nwr-popup-call { font-weight: 700; color: #4fc3f7; font-size: 15px; }
+.nwr-popup-freq { font-size: 12px; color: #94a3b8; font-weight: 600; }
+.nwr-popup-location { font-size: 12px; color: #c8d7e0; margin: 2px 0 6px; }
+.nwr-popup-controls { display: flex; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid #334155; border-bottom: 1px solid #334155; }
+.nwr-listen-btn { padding: 4px 12px; background: #064e3b; color: #6ee7b7; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.nwr-listen-btn:hover { background: #065f46; }
+
+.nwr-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin: 8px 0 4px; }
+
+.nwr-forecast-period { margin-bottom: 6px; }
+.nwr-fc-name { font-size: 12px; font-weight: 600; color: #e0e6ed; }
+.nwr-fc-detail { font-size: 12px; color: #c8d7e0; }
+.nwr-fc-temp { font-weight: 700; color: #38bdf8; }
+.nwr-fc-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; line-height: 1.3; }
+
+.nwr-alert { margin-bottom: 8px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid; }
+.nwr-alert-extreme { background: #450a0a; border-color: #ef4444; }
+.nwr-alert-severe { background: #451a03; border-color: #f97316; }
+.nwr-alert-moderate { background: #422006; border-color: #eab308; }
+.nwr-alert-minor { background: #1e293b; border-color: #64748b; }
+.nwr-alert-unknown { background: #1e293b; border-color: #64748b; }
+.nwr-alert-event { font-size: 13px; font-weight: 700; color: #fbbf24; }
+.nwr-alert-headline { font-size: 11px; color: #e0e6ed; margin: 2px 0; }
+.nwr-alert-desc { font-size: 11px; color: #94a3b8; margin-top: 4px; line-height: 1.3; max-height: 120px; overflow-y: auto; }
+.nwr-alert-instr { font-size: 11px; color: #6ee7b7; margin-top: 4px; line-height: 1.3; font-style: italic; }
+.nwr-alert-expires { font-size: 10px; color: #64748b; margin-top: 4px; }
+
+/* Style the Leaflet popup for dark theme */
+.leaflet-popup-content-wrapper { background: #111827; color: #e0e6ed; border-radius: 8px; }
+.leaflet-popup-tip { background: #111827; }
+.leaflet-popup-content { margin: 10px 12px; max-height: 400px; overflow-y: auto; }
+.leaflet-popup-close-button { color: #94a3b8; }
+.leaflet-popup-close-button:hover { color: #e0e6ed; }
+
+/* Map Style Selector */
+.map-style-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 6px;
+}
+.map-style-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    background: #1e293b;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    color: #94a3b8;
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+.map-style-btn:hover {
+    border-color: #475569;
+    color: #e0e6ed;
+}
+.map-style-btn.active {
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+.map-style-preview {
+    width: 100%;
+    height: 32px;
+    border-radius: 4px;
+    display: block;
+}
+
+/* Offline Map Download */
+.map-download-section { margin-top: 4px; }
+.dl-progress-bar {
+    height: 6px;
+    background: #1e293b;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 6px 0 2px;
+}
+.dl-progress-fill {
+    height: 100%;
+    background: #38bdf8;
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.2s;
+}
+
+/* Map area selection mode */
+.map-selecting {
+    cursor: crosshair !important;
+}
+.map-selecting .leaflet-interactive {
+    cursor: crosshair !important;
+}
+#dl-select-banner {
+    display: none;
+    position: fixed;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(56, 189, 248, 0.9);
+    color: #000;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    z-index: 3000;
+    pointer-events: none;
+    text-align: center;
+}
+#dl-select-banner.visible {
+    display: block;
+}
+
+#main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+#map {
+    flex: 1;
+    background: #0a0e17;
+}
+
+/* Map tile filter — applied dynamically by JS based on selected style */
+.leaflet-tile-pane {
+}
+
+.leaflet-container {
+    background: #0a0e17;
+}
+
+#sidebar {
+    width: 360px;
+    background: #111827;
+    border-left: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#filter-bar {
+    display: flex;
+    padding: 8px;
+    gap: 4px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.filter-btn {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #1e293b;
+    background: transparent;
+    color: #94a3b8;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.15s;
+}
+
+.filter-btn:hover { background: #1e293b; }
+.filter-btn.active { background: #1e3a5f; color: #38bdf8; border-color: #38bdf8; }
+
+#target-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.target-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 10px;
+}
+
+.target-item:hover { background: #1e293b; }
+.target-item.selected { background: #172554; border: 1px solid #38bdf8; }
+
+.target-icon {
+    font-size: 20px;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.target-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.target-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.target-meta {
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.target-subline {
+    font-size: 11px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.target-name.aircraft { color: #38bdf8; }
+.target-name.military { color: #ef4444 !important; }
+
+.cat-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+.cat-badge.mil { background: #450a0a; color: #fca5a5; }
+.cat-badge.helo { background: #1e3a5f; color: #7dd3fc; }
+.target-name.vessel { color: #34d399; }
+.target-name.drone { color: #e879f9; }
+.target-name.aprs-is { color: #00aacc; }
+.target-name.aprs-rf { color: #00ff9d; }
+.target-name.aprs-uvpro { color: #ffd166; }
+
+#detail-panel {
+    background: #0f172a;
+    border-top: 1px solid #1e293b;
+    padding: 16px;
+    max-height: 45%;
+    overflow-y: auto;
+    position: relative;
+}
+
+#detail-panel.hidden { display: none; }
+
+#close-detail {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 12px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.detail-label { color: #64748b; }
+.detail-value { color: #e0e6ed; font-weight: 600; text-align: right; }
+.ext-links-row .detail-value { font-weight: normal; line-height: 1.6; }
+.ext-link {
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid #1e3a5f;
+    border-radius: 3px;
+    display: inline-block;
+    margin: 1px;
+    transition: all 0.15s;
+}
+.ext-link:hover {
+    background: #1e3a5f;
+    border-color: #38bdf8;
+}
+
+/* Map markers */
+.marker-aircraft {
+    color: #38bdf8;
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+.marker-vessel {
+    color: #34d399;
+    text-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+}
+.marker-drone {
+    color: #e879f9;
+    text-shadow: 0 0 8px rgba(232, 121, 249, 0.5);
+}
+.marker-aprs-is {
+    color: #00aacc;
+    text-shadow: 0 0 8px rgba(0, 170, 204, 0.5);
+}
+.marker-aprs-rf {
+    color: #00ff9d;
+    text-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+}
+.marker-aprs-uvpro {
+    color: #ffd166;
+    text-shadow: 0 0 8px rgba(255, 209, 102, 0.5);
+}
+
+/* NWR Tower markers */
+.nwr-tower-icon {
+    font-size: 20px;
+    text-align: center;
+    opacity: 0.8;
+    filter: drop-shadow(0 0 4px rgba(255, 152, 0, 0.5));
+    cursor: pointer;
+}
+.nwr-tower-icon:hover {
+    opacity: 1;
+    transform: scale(1.3);
+    filter: drop-shadow(0 0 8px rgba(255, 152, 0, 0.8));
+}
+
+/* Satellite markers */
+.sat-marker {
+    font-size: 22px;
+    text-align: center;
+    filter: grayscale(0.5);
+    opacity: 0.6;
+}
+.sat-marker.sat-visible {
+    filter: none;
+    opacity: 1;
+    animation: sat-pulse 2s ease-in-out infinite;
+}
+/* NOAA Panel */
+.noaa-panel {
+    padding: 8px;
+}
+.noaa-section {
+    margin-bottom: 12px;
+}
+.noaa-heading {
+    color: #4fc3f7;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #1e293b;
+}
+.noaa-controls {
+    padding: 8px;
+    background: #0f172a;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+    margin-bottom: 8px;
+}
+.noaa-ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.noaa-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #064e3b;
+    color: #6ee7b7;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.noaa-btn:hover { background: #065f46; }
+.noaa-btn.noaa-btn-active {
+    background: #1e3a5f;
+    color: #4fc3f7;
+    border-color: #4fc3f7;
+    cursor: default;
+}
+.noaa-btn.noaa-btn-stop {
+    background: #450a0a;
+    color: #fca5a5;
+    border-color: #7f1d1d;
+}
+.noaa-btn.noaa-btn-stop:hover { background: #7f1d1d; }
+.noaa-capture-card {
+    padding: 8px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.noaa-capture-img {
+    max-width: 100%;
+    margin-top: 6px;
+    border-radius: 4px;
+    border: 1px solid #1e293b;
+}
+
+@keyframes sat-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+.aprs-marker-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 4px rgba(0, 170, 204, 0.6));
+}
+
+.aprs-source-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    margin-right: 4px;
+}
+.aprs-source-badge.is { background: #0d3340; color: #00aacc; }
+.aprs-source-badge.rf { background: #0d3320; color: #00ff9d; }
+.aprs-source-badge.uv-pro { background: #332d0d; color: #ffd166; }
+.aprs-source-badge.tx { background: #3d1a0d; color: #ff6b6b; }
+
+.target-name.aprs-tx { color: #ff6b6b; }
+.marker-aprs-tx {
+    color: #ff6b6b;
+    text-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+}
+
+.packet-raw {
+    font-size: 9px;
+    color: #475569;
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.leaflet-popup-content-wrapper {
+    background: #1e293b;
+    color: #e0e6ed;
+    border-radius: 8px;
+    font-size: 12px;
+}
+.leaflet-popup-tip { background: #1e293b; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+@media (max-width: 768px) {
+    #main { flex-direction: column; }
+    #sidebar { width: 100%; height: 40%; }
+    #map { height: 60%; }
+}

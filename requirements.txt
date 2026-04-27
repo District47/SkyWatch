@@ -1,0 +1,38 @@
+# SkyWatch — unified SDR monitoring (Python port)
+# Web framework
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12.0
+
+# HTTP / WebSocket clients
+httpx>=0.27
+websocket-client>=1.7
+
+# AIS decoding
+pyais>=2.6
+
+# ADS-B / Mode S decoding (used as fallback to readsb)
+pyModeS>=2.18
+
+# Satellite tracking (SGP4)
+sgp4>=2.23
+
+# Drone Remote ID (WiFi monitor mode capture)
+scapy>=2.5
+
+# Bluetooth LE (Drone Remote ID alternate path)
+bleak>=0.21
+
+# Signal processing (APT image decode, NWR scan, FM demod)
+numpy>=1.24
+scipy>=1.10
+Pillow>=10.0
+
+# Audio output (NWR streaming, optional)
+sounddevice>=0.4
+
+# Serial port (UV-Pro APRS TNC)
+pyserial>=3.5
+
+# RTL-SDR direct access (for native FM demod path)
+pyrtlsdr>=0.3

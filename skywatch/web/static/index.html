@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyWatch — SDR Monitor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/aprs-symbols/aprs-symbols.css" />
+</head>
+<body>
+    <div id="header">
+        <h1>&#x1f4e1; SkyWatch</h1>
+        <div id="stats">
+            <span id="aircraft-count" class="badge aircraft">Aircraft: 0</span>
+            <span id="vessel-count" class="badge vessel">Vessels: 0</span>
+            <span id="drone-count" class="badge drone">Drones: 0</span>
+            <span id="aprs-count" class="badge aprs">APRS: 0</span>
+            <button id="setup-btn" class="badge setup-badge">Settings</button>
+            <button id="clear-map-btn" class="badge clear-badge">Clear Map</button>
+            <span id="connection-status" class="badge disconnected">Disconnected</span>
+        </div>
+    </div>
+
+    <div id="dl-select-banner">Click and drag on the map to select the download area. Press Escape to cancel.</div>
+
+    <!-- Setup Modal -->
+    <div id="setup-overlay" class="hidden">
+        <div id="setup-modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button id="close-setup">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="devices-loading">Scanning for RTL-SDR devices...</div>
+                <div id="devices-error" class="hidden"></div>
+                <div id="devices-list" class="hidden"></div>
+
+                <div id="module-controls" class="hidden">
+                    <h3>Module Assignment</h3>
+
+                    <div id="module-status"></div>
+                </div>
+
+                <h3 style="margin-top:16px">API Keys</h3>
+                <div class="api-keys-section">
+                    <div class="tx-row">
+                        <label title="Get a free API key at aisstream.io">AISStream</label>
+                        <input type="password" id="aisstream-key" class="tx-input" placeholder="API key for online AIS feed" style="flex:1" />
+                        <button id="aisstream-save" class="tx-btn-sm">Save</button>
+                    </div>
+                    <div id="api-keys-status" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+                </div>
+
+                <h3 style="margin-top:16px">Map Style</h3>
+                <div class="map-style-grid" id="map-style-grid">
+                    <button class="map-style-btn active" data-style="dark">
+                        <span class="map-style-preview" style="background:#1a1a2e"></span>
+                        <span>Dark</span>
+                    </button>
+                    <button class="map-style-btn" data-style="light">
+                        <span class="map-style-preview" style="background:#e0e0e0"></span>
+                        <span>Light</span>
+                    </button>
+                    <button class="map-style-btn" data-style="satellite">
+                        <span class="map-style-preview" style="background:linear-gradient(135deg,#2d5016,#1a3a0a,#3d6b1e)"></span>
+                        <span>Satellite</span>
+                    </button>
+                    <button class="map-style-btn" data-style="topo">
+                        <span class="map-style-preview" style="background:linear-gradient(135deg,#f5f0e6,#d4c9a8)"></span>
+                        <span>Topo</span>
+                    </button>
+                    <button class="map-style-btn" data-style="streets">
+                        <span class="map-style-preview" style="background:#c8d7e0"></span>
+                        <span>Streets</span>
+                    </button>
+                    <button class="map-style-btn" data-style="dark-matter">
+                        <span class="map-style-preview" style="background:#0d0d0d"></span>
+                        <span>Dark Matter</span>
+                    </button>
+                </div>
+
+                <h3 style="margin-top:16px">Offline Maps</h3>
+                <div class="map-download-section">
+                    <div id="dl-no-area">
+                        <p style="color:#94a3b8;font-size:12px;margin:0 0 8px">
+                            Select an area on the map to download tiles for offline use.
+                        </p>
+                        <button id="dl-select-area" class="module-toggle start" style="width:100%">Select Area</button>
+                    </div>
+                    <div id="dl-has-area" class="hidden">
+                        <div class="tx-row">
+                            <label>Area</label>
+                            <span id="dl-area-desc" class="tx-value" style="flex:1"></span>
+                            <button id="dl-reselect" class="tx-btn-sm" style="min-width:70px">Reselect</button>
+                        </div>
+                        <div class="tx-row">
+                            <label>Min Zoom</label>
+                            <input type="range" id="dl-min-zoom" min="1" max="18" value="5" style="flex:1" />
+                            <span id="dl-min-zoom-val" style="width:24px;text-align:center;color:#94a3b8">5</span>
+                        </div>
+                        <div class="tx-row">
+                            <label>Max Zoom</label>
+                            <input type="range" id="dl-max-zoom" min="1" max="18" value="13" style="flex:1" />
+                            <span id="dl-max-zoom-val" style="width:24px;text-align:center;color:#94a3b8">13</span>
+                        </div>
+                        <div class="tx-row">
+                            <label>Tiles</label>
+                            <span id="dl-tile-count" class="tx-value" style="flex:1">0</span>
+                        </div>
+                        <div class="tx-row">
+                            <label>Est. Size</label>
+                            <span id="dl-est-size" class="tx-value" style="flex:1">0 MB</span>
+                        </div>
+                        <div id="dl-progress" class="hidden">
+                            <div class="dl-progress-bar"><div class="dl-progress-fill" id="dl-progress-fill"></div></div>
+                            <span id="dl-progress-text" style="font-size:11px;color:#94a3b8"></span>
+                        </div>
+                        <div class="tx-row" style="margin-top:4px">
+                            <button id="dl-start" class="module-toggle start" style="flex:1">Download Tiles</button>
+                        </div>
+                    </div>
+                    <div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between">
+                        <span id="dl-cache-info" style="font-size:11px;color:#64748b"></span>
+                        <button id="dl-clear" class="tx-btn-sm" style="min-width:80px">Clear Cache</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="main">
+        <div id="map"></div>
+        <div id="sidebar">
+            <div id="filter-bar">
+                <button class="filter-btn active" data-type="all">All</button>
+                <button class="filter-btn" data-type="aircraft">Aircraft</button>
+                <button class="filter-btn" data-type="vessel">Vessels</button>
+                <button class="filter-btn" data-type="drone">Drones</button>
+                <button class="filter-btn" data-type="aprs">APRS</button>
+                <button class="filter-btn" data-type="noaa">NOAA</button>
+            </div>
+
+            <!-- ADS-B Controls (visible when Aircraft tab is active) -->
+            <div id="adsb-controls" class="hidden">
+                <div class="adsb-device-row">
+                    <span class="module-icon aircraft-color" style="font-size:16px">&#9992;</span>
+                    <select id="adsb-device" class="device-select" style="flex:1">
+                        <option value="-1">Select Device</option>
+                    </select>
+                    <button class="module-toggle" data-module="adsb" id="adsb-toggle">Start</button>
+                </div>
+                <div class="adsb-db-row">
+                    <span id="adsb-db-status" style="font-size:11px;color:#64748b;flex:1">Aircraft DB: not loaded</span>
+                    <button id="adsb-db-import" class="tx-btn-sm">Import Database</button>
+                </div>
+            </div>
+
+            <!-- AIS Controls (visible when Vessels tab is active) -->
+            <div id="ais-controls" class="hidden">
+                <div class="adsb-device-row">
+                    <span class="module-icon vessel-color" style="font-size:16px">&#9981;</span>
+                    <select id="ais-device" class="device-select" style="flex:1">
+                        <option value="-1">Select Device</option>
+                    </select>
+                    <button class="module-toggle" data-module="ais" id="ais-toggle">Start</button>
+                </div>
+            </div>
+
+            <!-- Drone Controls (visible when Drones tab is active) -->
+            <div id="drone-controls" class="hidden">
+                <div class="adsb-device-row">
+                    <span class="module-icon drone-color" style="font-size:16px">&#x2B23;</span>
+                    <span style="font-size:12px;color:#94a3b8;flex:1">WiFi Monitor Mode</span>
+                    <button class="module-toggle" data-module="drone" id="drone-toggle">Start</button>
+                </div>
+            </div>
+
+            <!-- APRS Controls (visible when APRS tab is active) -->
+            <div id="aprs-controls" class="hidden">
+                <div class="aprs-quick-actions">
+                    <button id="tx-beacon" class="module-toggle start" style="flex:1">Send Beacon</button>
+                    <button id="aprs-gear-btn" class="tx-btn-sm" title="APRS Settings" style="font-size:16px;padding:6px 10px" onclick="window.skywatch.openAPRSSettings()">&#9881;</button>
+                </div>
+                <div class="aprs-msg-row">
+                    <input type="text" id="tx-msg-to" class="tx-input" placeholder="Callsign" style="width:80px" />
+                    <input type="text" id="tx-msg-text" class="tx-input" placeholder="Message..." style="flex:1" />
+                    <button id="tx-send-msg" class="module-toggle start" style="min-width:50px">Send</button>
+                </div>
+                <div id="tx-status" style="padding:0 8px;min-height:14px;font-size:11px"></div>
+                <div id="aprs-messages">
+                    <div class="aprs-msg-header">
+                        <span>Messages</span>
+                        <span id="aprs-msg-count" class="tx-value">0</span>
+                    </div>
+                    <div id="aprs-msg-list"></div>
+                </div>
+            </div>
+
+            <div id="target-list"></div>
+
+            <!-- APRS Settings Popup -->
+            <div id="aprs-settings-overlay" class="hidden" onclick="if(event.target===this)window.skywatch.closeAPRSSettings()">
+                <div id="aprs-settings-popup">
+                    <div class="modal-header" style="padding:10px 14px">
+                        <h2 style="font-size:14px">APRS Settings</h2>
+                        <button onclick="window.skywatch.closeAPRSSettings()">&times;</button>
+                    </div>
+                    <div style="padding:10px 14px">
+                        <div class="tx-row">
+                            <label>Callsign</label>
+                            <input type="text" id="tx-callsign" class="tx-input" placeholder="W1AW" style="width:90px" />
+                            <span style="font-size:11px;color:#64748b">-</span>
+                            <input type="number" id="tx-ssid" class="tx-input" placeholder="9" value="9" style="width:45px" min="0" max="15" />
+                            <button id="tx-save-call" class="tx-btn-sm">Save</button>
+                        </div>
+                        <div class="tx-row">
+                            <label>Position</label>
+                            <button id="tx-set-pos" class="tx-btn-sm">Set from map center</button>
+                            <span id="tx-pos-display" class="tx-value">Not set</span>
+                        </div>
+                        <div class="tx-row">
+                            <label>Symbol</label>
+                            <select id="tx-symbol" class="device-select" style="flex:1">
+                                <option value="/>">/> Car</option>
+                                <option value="/[">/[ Jogger</option>
+                                <option value="/b">/b Bicycle</option>
+                                <option value="/k">/k Truck</option>
+                                <option value="/v">/v Van</option>
+                                <option value="/Y">/Y Yacht</option>
+                                <option value="/:">/: Fire</option>
+                                <option value="/a">/a Ambulance</option>
+                                <option value="/-">/- House</option>
+                                <option value="/r">/r Repeater</option>
+                                <option value="/#">/# Digipeater</option>
+                                <option value="/I">/I TCP/IP</option>
+                            </select>
+                        </div>
+                        <div class="tx-row">
+                            <label>Comment</label>
+                            <input type="text" id="tx-comment" class="tx-input" placeholder="SkyWatch SDR Monitor" value="SkyWatch SDR Monitor" />
+                        </div>
+
+                        <h3 style="margin-top:12px;font-size:12px">Sources</h3>
+                        <div class="module-row">
+                            <div class="module-label">
+                                <span class="module-icon aprs-is-color">&#x1f4e1;</span>
+                                <span>APRS-IS</span>
+                            </div>
+                            <span class="module-note">Internet</span>
+                            <button class="module-toggle" data-module="aprs-is" id="aprs-is-toggle">Start</button>
+                        </div>
+                        <div class="module-row">
+                            <div class="module-label">
+                                <span class="module-icon aprs-rf-color">&#x1f4fb;</span>
+                                <span>APRS RF</span>
+                            </div>
+                            <select id="aprs-sdr-device" class="device-select">
+                                <option value="-1">Disabled</option>
+                            </select>
+                            <button class="module-toggle" data-module="aprs-sdr" id="aprs-sdr-toggle">Start</button>
+                        </div>
+                        <div class="module-row">
+                            <div class="module-label">
+                                <span class="module-icon aprs-uvpro-color">&#x1f4f1;</span>
+                                <span>UV-Pro</span>
+                            </div>
+                            <span class="module-note">-aprs-uvpro flag</span>
+                            <button class="module-toggle" data-module="aprs-uvpro" id="aprs-uvpro-toggle">Start</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="detail-panel" class="hidden">
+                <button id="close-detail">&times;</button>
+                <div id="detail-content"></div>
+            </div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/aprs-symbols/aprs-symbols.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
