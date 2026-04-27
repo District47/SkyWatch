@@ -9,6 +9,7 @@ venv/
 # Runtime data
 data/aircraft.json
 data/api_keys.json
+data/alert_zones.json
 noaa_images/
 
 # OS
