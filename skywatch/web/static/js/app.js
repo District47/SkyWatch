@@ -526,57 +526,40 @@
         updateDetail();
         updateList();
 
-        // Pan map to target
+        // APRS stations still use the side detail panel.
         if (id && id.startsWith('aprs-')) {
             var call = id.substring(5);
             var s = aprsStations.find(function(x) { return x.callsign === call; });
             if (s && s.lat && s.lon) map.panTo([s.lat, s.lon]);
-        } else {
-            const t = targets.find(function(x) { return x.id === id; });
-            if (t && t.lat && t.lon) map.panTo([t.lat, t.lon]);
+            return;
+        }
+
+        // Aircraft / vessels / drones get a popup anchored to the marker.
+        const t = targets.find(function(x) { return x.id === id; });
+        if (!t || !t.lat || !t.lon) return;
+        map.panTo([t.lat, t.lon]);
+        var marker = markers[id];
+        if (marker) {
+            marker.bindPopup(buildTargetPopupHTML(t), {
+                maxWidth: 320, minWidth: 240, autoPan: true,
+                className: 'target-popup',
+            }).openPopup();
+            marker.once('popupclose', function() {
+                if (selectedId === id) {
+                    selectedId = null;
+                    updateList();
+                }
+            });
         }
     }
 
-    function updateDetail() {
-        const panel = document.getElementById('detail-panel');
-        const content = document.getElementById('detail-content');
+    // Cache vessel photos so we don't re-fetch on every WS update.
+    var vesselPhotoCache = {};
 
-        // Check APRS stations first
-        if (selectedId && selectedId.startsWith('aprs-')) {
-            var call = selectedId.substring(5);
-            var s = aprsStations.find(function(x) { return x.callsign === call; });
-            if (!s) { panel.classList.add('hidden'); return; }
-
-            panel.classList.remove('hidden');
-            var rows = [];
-            rows.push(detailRow('Callsign', s.callsign));
-            rows.push(detailRow('Source', s.source));
-            if (s.lat || s.lon) rows.push(detailRow('Position', s.lat.toFixed(5) + ', ' + s.lon.toFixed(5)));
-            if (s.symbol) rows.push(detailRow('Symbol', s.symbol));
-            if (s.speed) rows.push(detailRow('Speed', s.speed.toFixed(1) + ' kts'));
-            if (s.course) rows.push(detailRow('Course', s.course + '\u00B0'));
-            if (s.altitude) rows.push(detailRow('Altitude', s.altitude + ' ft'));
-            if (s.comment) rows.push(detailRow('Comment', s.comment));
-            if (s.messages) rows.push(detailRow('Messages', s.messages));
-            if (s.last_packet) rows.push(detailRow('Last Packet', s.last_packet));
-            if (s.seen) rows.push(detailRow('Last Seen', new Date(s.seen * 1000).toLocaleTimeString()));
-            content.innerHTML = rows.join('');
-            return;
-        }
-
-        const t = targets.find(function(x) { return x.id === selectedId; });
-
-        if (!t) {
-            panel.classList.add('hidden');
-            return;
-        }
-
-        panel.classList.remove('hidden');
+    function buildTargetDetailRows(t) {
         var rows = [];
-
         rows.push(detailRow('Type', t.type.charAt(0).toUpperCase() + t.type.slice(1)));
         rows.push(detailRow('ID', t.id));
-
         if (t.callsign) rows.push(detailRow('Callsign', t.callsign));
         if (t.registration) rows.push(detailRow('Registration', t.registration));
         if (t.aircraft_type) rows.push(detailRow('Aircraft', t.aircraft_type));
@@ -586,7 +569,7 @@
         if (t.lat || t.lon) rows.push(detailRow('Position', t.lat.toFixed(5) + ', ' + t.lon.toFixed(5)));
         if (t.altitude) rows.push(detailRow('Altitude', Math.round(t.altitude) + (t.type === 'aircraft' ? ' ft' : ' m')));
         if (t.speed) rows.push(detailRow('Speed', t.speed.toFixed(1) + ' kts'));
-        if (t.heading) rows.push(detailRow('Heading', Math.round(t.heading) + '\u00B0'));
+        if (t.heading) rows.push(detailRow('Heading', Math.round(t.heading) + '°'));
         if (t.squawk) rows.push(detailRow('Squawk', t.squawk));
         if (t.mmsi) rows.push(detailRow('MMSI', t.mmsi));
         if (t.ship_name) rows.push(detailRow('Ship Name', t.ship_name));
@@ -603,55 +586,96 @@
         if (t.messages) rows.push(detailRow('Messages', t.messages));
         if (t.last_seen) rows.push(detailRow('Last Seen', new Date(t.last_seen).toLocaleTimeString()));
 
-        // Best-effort Wikipedia photo lookup for vessels — appended after
-        // initial render so the UI doesn't block on the network round-trip.
-        if (t.type === 'vessel' && t.ship_name) {
-            var photoSlotId = 'vessel-photo-' + (t.mmsi || t.ship_name).replace(/[^A-Za-z0-9]/g, '');
-            rows.unshift('<div id="' + photoSlotId + '" class="vessel-photo-slot"></div>');
-            setTimeout(function() {
-                fetch('/api/vessel/photo?name=' + encodeURIComponent(t.ship_name))
-                    .then(function(r) { return r.json(); })
-                    .then(function(p) {
-                        var slot = document.getElementById(photoSlotId);
-                        if (!slot || !p || !p.thumbnail) return;
-                        slot.innerHTML =
-                            '<a href="' + p.page_url + '" target="_blank" rel="noopener">' +
-                            '<img src="' + p.thumbnail + '" alt="' + (p.title || t.ship_name) + '" ' +
-                            'style="max-width:100%;border-radius:6px;display:block;margin:0 0 8px"/></a>' +
-                            (p.description ? '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px">' + p.description + '</div>' : '');
-                    })
-                    .catch(function() {});
-            }, 0);
-        }
-
-        // External links for vessels
         if (t.type === 'vessel' && t.mmsi) {
             var mmsiNum = t.mmsi.replace(/^0+/, '');
-            var links = [
+            var vlinks = [
                 '<a href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:' + mmsiNum + '" target="_blank" rel="noopener" class="ext-link">MarineTraffic</a>',
                 '<a href="https://www.vesselfinder.com/vessels?name=&mmsi=' + mmsiNum + '" target="_blank" rel="noopener" class="ext-link">VesselFinder</a>',
                 '<a href="https://www.myshiptracking.com/vessels/mmsi-' + mmsiNum + '" target="_blank" rel="noopener" class="ext-link">MyShipTracking</a>',
             ];
-            if (t.imo) {
-                links.push('<a href="https://www.marinetraffic.com/en/ais/details/ships/imo:' + t.imo + '" target="_blank" rel="noopener" class="ext-link">By IMO</a>');
-            }
-            rows.push('<div class="detail-row ext-links-row"><span class="detail-label">More Info</span><span class="detail-value">' + links.join(' · ') + '</span></div>');
+            if (t.imo) vlinks.push('<a href="https://www.marinetraffic.com/en/ais/details/ships/imo:' + t.imo + '" target="_blank" rel="noopener" class="ext-link">By IMO</a>');
+            rows.push('<div class="detail-row ext-links-row"><span class="detail-label">More Info</span><span class="detail-value">' + vlinks.join(' · ') + '</span></div>');
         }
-
-        // External links for aircraft
         if (t.type === 'aircraft' && t.id && t.id.indexOf('ICAO-') === 0) {
             var hex = t.id.substring(5);
-            var links = [
+            var alinks = [
                 '<a href="https://globe.adsbexchange.com/?icao=' + hex + '" target="_blank" rel="noopener" class="ext-link">ADSBexchange</a>',
                 '<a href="https://flightaware.com/live/modes/' + hex + '/redirect" target="_blank" rel="noopener" class="ext-link">FlightAware</a>',
                 '<a href="https://www.flightradar24.com/data/aircraft/' + (t.registration || hex).toLowerCase() + '" target="_blank" rel="noopener" class="ext-link">FlightRadar24</a>',
             ];
-            if (t.registration) {
-                links.push('<a href="https://www.jetphotos.com/photo/keyword/' + t.registration + '" target="_blank" rel="noopener" class="ext-link">JetPhotos</a>');
+            if (t.registration) alinks.push('<a href="https://www.jetphotos.com/photo/keyword/' + t.registration + '" target="_blank" rel="noopener" class="ext-link">JetPhotos</a>');
+            rows.push('<div class="detail-row ext-links-row"><span class="detail-label">More Info</span><span class="detail-value">' + alinks.join(' · ') + '</span></div>');
+        }
+        return rows;
+    }
+
+    function buildTargetPopupHTML(t) {
+        var title = t.callsign || t.ship_name || t.drone_id || t.id;
+        var header = '<div class="target-popup-header" style="font-weight:600;color:#e0e6ed;border-bottom:1px solid #1e293b;padding-bottom:6px;margin-bottom:6px">' +
+            escHtml(title) + ' <span style="color:#64748b;font-weight:400;font-size:11px">' + escHtml(t.type) + '</span></div>';
+        var photoBlock = '';
+        if (t.type === 'vessel' && t.ship_name) {
+            var cached = vesselPhotoCache[t.ship_name];
+            if (cached && cached.thumbnail) {
+                photoBlock =
+                    '<a href="' + cached.page_url + '" target="_blank" rel="noopener">' +
+                    '<img src="' + cached.thumbnail + '" alt="' + escHtml(cached.title || t.ship_name) + '" ' +
+                    'style="max-width:100%;border-radius:6px;display:block;margin:0 0 6px"/></a>' +
+                    (cached.description ? '<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">' + escHtml(cached.description) + '</div>' : '');
+            } else if (cached === undefined) {
+                vesselPhotoCache[t.ship_name] = null;
+                fetch('/api/vessel/photo?name=' + encodeURIComponent(t.ship_name))
+                    .then(function(r) { return r.json(); })
+                    .then(function(p) {
+                        vesselPhotoCache[t.ship_name] = p || null;
+                        var m = markers[t.id];
+                        var current = targets.find(function(x) { return x.id === t.id; });
+                        if (m && current && m.isPopupOpen && m.isPopupOpen()) {
+                            m.setPopupContent(buildTargetPopupHTML(current));
+                        }
+                    })
+                    .catch(function() {});
             }
-            rows.push('<div class="detail-row ext-links-row"><span class="detail-label">More Info</span><span class="detail-value">' + links.join(' · ') + '</span></div>');
+        }
+        return '<div class="target-popup-body" style="font-size:12px;color:#cbd5e1;max-height:320px;overflow-y:auto">' +
+            header + photoBlock + buildTargetDetailRows(t).join('') + '</div>';
+    }
+
+    function updateDetail() {
+        const panel = document.getElementById('detail-panel');
+        const content = document.getElementById('detail-content');
+
+        // Aircraft / vessel / drone detail now lives in a map popup anchored
+        // to the marker. The side panel is reserved for APRS stations.
+        if (!selectedId || !selectedId.startsWith('aprs-')) {
+            panel.classList.add('hidden');
+            if (selectedId) {
+                var t = targets.find(function(x) { return x.id === selectedId; });
+                var m = markers[selectedId];
+                if (t && m && m.isPopupOpen && m.isPopupOpen()) {
+                    m.setPopupContent(buildTargetPopupHTML(t));
+                }
+            }
+            return;
         }
 
+        var call = selectedId.substring(5);
+        var s = aprsStations.find(function(x) { return x.callsign === call; });
+        if (!s) { panel.classList.add('hidden'); return; }
+
+        panel.classList.remove('hidden');
+        var rows = [];
+        rows.push(detailRow('Callsign', s.callsign));
+        rows.push(detailRow('Source', s.source));
+        if (s.lat || s.lon) rows.push(detailRow('Position', s.lat.toFixed(5) + ', ' + s.lon.toFixed(5)));
+        if (s.symbol) rows.push(detailRow('Symbol', s.symbol));
+        if (s.speed) rows.push(detailRow('Speed', s.speed.toFixed(1) + ' kts'));
+        if (s.course) rows.push(detailRow('Course', s.course + '°'));
+        if (s.altitude) rows.push(detailRow('Altitude', s.altitude + ' ft'));
+        if (s.comment) rows.push(detailRow('Comment', s.comment));
+        if (s.messages) rows.push(detailRow('Messages', s.messages));
+        if (s.last_packet) rows.push(detailRow('Last Packet', s.last_packet));
+        if (s.seen) rows.push(detailRow('Last Seen', new Date(s.seen * 1000).toLocaleTimeString()));
         content.innerHTML = rows.join('');
     }
 
@@ -2424,7 +2448,9 @@
                 color: '#f59e0b', weight: 1.5,
                 fillColor: '#f59e0b', fillOpacity: 0.08,
             }).bindTooltip(z.name + ' — ' + z.radius_km + ' km' +
-                (z.category_filter ? ' (' + z.category_filter + ')' : ''));
+                ((z.category_filters && z.category_filters.length)
+                    ? ' (' + z.category_filters.join('/') + ')'
+                    : (z.category_filter ? ' (' + z.category_filter + ')' : '')));
             alertZoneLayer.addLayer(circle);
         });
     }
@@ -2437,7 +2463,10 @@
             return;
         }
         el.innerHTML = alertZones.map(function(z) {
-            var label = (z.category_filter || 'any') + (z.callsign_filter ? ' · ' + z.callsign_filter : '');
+            var cats = (z.category_filters && z.category_filters.length)
+                ? z.category_filters.join(' / ')
+                : (z.category_filter || 'any');
+            var label = cats + (z.callsign_filter ? ' · ' + z.callsign_filter : '');
             return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">' +
                 '<div style="flex:1;min-width:0">' +
                     '<div style="color:#e0e6ed;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(z.name) + '</div>' +
@@ -2519,20 +2548,23 @@
             document.getElementById('alert-name').value = '';
             document.getElementById('alert-callsign').value = '';
             document.getElementById('alert-radius').value = '5';
-            document.getElementById('alert-category').value = '';
+            document.querySelectorAll('#alert-category-group .alert-cat').forEach(function(c) { c.checked = false; });
         }
 
         addBtn.addEventListener('click', startPicking);
         cancelBtn.addEventListener('click', stopPicking);
         saveBtn.addEventListener('click', function() {
             if (!alertAddState) return;
+            var cats = Array.prototype.slice
+                .call(document.querySelectorAll('#alert-category-group .alert-cat:checked'))
+                .map(function(el) { return el.value; });
             var body = {
                 name: document.getElementById('alert-name').value || ('Zone ' + (alertZones.length + 1)),
                 lat: alertAddState.lat,
                 lon: alertAddState.lon,
                 radius_km: parseFloat(document.getElementById('alert-radius').value) || 5.0,
                 target_types: ['aircraft'],
-                category_filter: document.getElementById('alert-category').value || '',
+                category_filters: cats,
                 callsign_filter: document.getElementById('alert-callsign').value || '',
             };
             fetch('/api/alerts/zones', {

@@ -311,13 +311,18 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         if alerts is None:
             raise HTTPException(503, "alerts not configured")
         body = await req.json()
+        # Accept the new category_filters (list) plus the legacy
+        # category_filter (single string) so old clients still work.
+        cf_list = body.get("category_filters") or []
+        if not cf_list and body.get("category_filter"):
+            cf_list = [body["category_filter"]]
         zone = await alerts.add_zone(
             name=body.get("name", ""),
             lat=float(body.get("lat", 0.0)),
             lon=float(body.get("lon", 0.0)),
             radius_km=float(body.get("radius_km", 5.0)),
             target_types=body.get("target_types") or ["aircraft"],
-            category_filter=body.get("category_filter", ""),
+            category_filters=cf_list,
             callsign_filter=body.get("callsign_filter", ""),
         )
         return zone.to_json()

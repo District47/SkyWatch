@@ -37,7 +37,9 @@ class AlertZone:
     lon: float
     radius_km: float
     target_types: list[str] = field(default_factory=lambda: ["aircraft"])
-    category_filter: str = ""  # "", "military", "helicopter", "mil-helo"
+    # Empty list = any category. Otherwise alert only if target.category is in
+    # this list (e.g. ["military", "helicopter", "mil-helo"]).
+    category_filters: list[str] = field(default_factory=list)
     callsign_filter: str = ""  # substring match on callsign / drone_id (case-insensitive)
     created_at: int = 0
 
@@ -100,6 +102,11 @@ class AlertManager:
             return
         for entry in raw:
             try:
+                # Migrate legacy single-string category_filter into the new
+                # category_filters list so existing zones keep working.
+                legacy = entry.pop("category_filter", None)
+                if legacy and not entry.get("category_filters"):
+                    entry["category_filters"] = [legacy]
                 zone = AlertZone(**entry)
                 self._zones[zone.id] = zone
             except Exception:
@@ -118,14 +125,14 @@ class AlertManager:
 
     async def add_zone(self, *, name: str, lat: float, lon: float, radius_km: float,
                        target_types: Optional[list[str]] = None,
-                       category_filter: str = "",
+                       category_filters: Optional[list[str]] = None,
                        callsign_filter: str = "") -> AlertZone:
         zone = AlertZone(
             id=uuid.uuid4().hex[:12],
             name=name or "Unnamed zone",
             lat=float(lat), lon=float(lon), radius_km=float(radius_km),
             target_types=list(target_types or ["aircraft"]),
-            category_filter=category_filter or "",
+            category_filters=[c for c in (category_filters or []) if c],
             callsign_filter=callsign_filter or "",
             created_at=int(time.time()),
         )
@@ -151,7 +158,7 @@ class AlertManager:
     def _matches(self, zone: AlertZone, t: Target) -> bool:
         if zone.target_types and t.type not in zone.target_types:
             return False
-        if zone.category_filter and t.category != zone.category_filter:
+        if zone.category_filters and t.category not in zone.category_filters:
             return False
         if zone.callsign_filter:
             needle = zone.callsign_filter.lower()
