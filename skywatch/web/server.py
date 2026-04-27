@@ -21,6 +21,7 @@ from ..tracker import Tracker, Target
 from ..sdr import list_devices
 from ..adsb import AircraftDB
 from ..ais import AISStream, lookup_vessel_photo
+from ..remoteid import list_wifi_interfaces
 from ..aprs import APRSStore, APRSISConfig, compute_passcode, build_position_beacon, build_message
 from ..aprs.tx import build_status
 from ..noaa import NOAA_SATELLITES, NWR_TRANSMITTERS
@@ -305,6 +306,15 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         if manager.aisstream:
             await manager.aisstream.set_bounds(lat, lon, radius)
         return {"ok": True, "lat": lat, "lon": lon, "radius_km": radius}
+
+    # ---- Drone Remote ID ----
+
+    @app.get("/api/remoteid/interfaces")
+    async def api_remoteid_interfaces():
+        return {
+            "interfaces": list_wifi_interfaces(),
+            "current": manager.remoteid_interface or "",
+        }
 
     # ---- Alert zones ----
 

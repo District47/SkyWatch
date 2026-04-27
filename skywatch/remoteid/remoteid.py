@@ -55,6 +55,47 @@ class RemoteIDConfig:
     channel: int = 6  # 0 = hop 1/6/11
 
 
+def list_wifi_interfaces() -> list[dict]:
+    """Return all network interfaces, with a guess at which are wireless.
+
+    Uses scapy's `conf.ifaces` so we get the human-readable name (e.g.
+    "Edimax Wi-Fi N150") plus the platform-specific value to pass back to
+    scapy/Npcap (e.g. `\\Device\\NPF_{GUID}` on Windows, `wlan0` on Linux).
+    """
+    out: list[dict] = []
+    try:
+        from scapy.config import conf  # type: ignore
+    except Exception:
+        return out
+    try:
+        ifaces = list(conf.ifaces.values())
+    except Exception:
+        return out
+
+    wifi_kw = ("wi-fi", "wifi", "wireless", "wlan", "802.11", "wlp", "wlx", "ath", "rtl", "alfa")
+    for iface in ifaces:
+        try:
+            description = (getattr(iface, "description", None) or getattr(iface, "name", "") or "").strip()
+            # The "name to pass to scapy/Npcap" varies per platform. Prefer
+            # network_name when set (Windows = \Device\NPF_{...}); otherwise
+            # fall back to .name (Linux = wlan0, macOS = en0).
+            scapy_name = getattr(iface, "network_name", None) or getattr(iface, "name", "")
+            if not scapy_name:
+                continue
+            blob = (description + " " + scapy_name).lower()
+            wireless = any(kw in blob for kw in wifi_kw)
+            out.append({
+                "name": scapy_name,
+                "description": description or scapy_name,
+                "wireless": wireless,
+            })
+        except Exception:
+            continue
+    # Wireless-looking entries first.
+    out.sort(key=lambda d: (not d["wireless"], d["description"].lower()))
+    return out
+
+
 def parse_remote_id_ie(payload: bytes) -> list[tuple[int, bytes]]:
     """Given a vendor-specific IE payload (after the 3-byte OUI), return
     list of (msg_type, body) tuples. Handles MessagePack (0xF) by recursion.

@@ -197,9 +197,12 @@
             <div id="drone-controls" class="hidden">
                 <div class="adsb-device-row">
                     <span class="module-icon drone-color" style="font-size:16px">&#x2B23;</span>
-                    <span style="font-size:12px;color:#94a3b8;flex:1">WiFi Monitor Mode</span>
+                    <select id="drone-iface" class="device-select" style="flex:1" title="WiFi adapter (must support monitor mode for Drone RID)">
+                        <option value="">Loading adapters…</option>
+                    </select>
                     <button class="module-toggle" data-module="drone" id="drone-toggle">Start</button>
                 </div>
+                <div style="font-size:11px;color:#64748b;margin-top:4px">Adapter must support 802.11 monitor mode (e.g. Alfa AWUS036NHA/ACH).</div>
             </div>
 
             <!-- APRS Controls (visible when APRS tab is active) -->

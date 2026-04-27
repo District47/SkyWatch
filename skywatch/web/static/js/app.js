@@ -826,7 +826,34 @@
     }
 
     // ── Drone status loading ──
+    var droneIfacesLoaded = false;
+    function loadDroneInterfaces() {
+        if (droneIfacesLoaded) return;
+        var sel = document.getElementById('drone-iface');
+        if (!sel) return;
+        fetch('/api/remoteid/interfaces')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                droneIfacesLoaded = true;
+                var ifaces = (data && data.interfaces) || [];
+                var current = (data && data.current) || '';
+                if (!ifaces.length) {
+                    sel.innerHTML = '<option value="">No adapters found</option>';
+                    return;
+                }
+                sel.innerHTML = ifaces.map(function(i) {
+                    var label = (i.wireless ? '📶 ' : '') + (i.description || i.name);
+                    return '<option value="' + i.name.replace(/"/g, '&quot;') + '">' + label + '</option>';
+                }).join('');
+                if (current) sel.value = current;
+            })
+            .catch(function() {
+                sel.innerHTML = '<option value="">(failed to enumerate)</option>';
+            });
+    }
+
     function loadDroneStatus() {
+        loadDroneInterfaces();
         fetch('/api/status')
             .then(function(r) { return r.json(); })
             .then(function(statuses) {
@@ -1218,19 +1245,32 @@
             } else {
                 // Start
                 var deviceIdx = -1;
-                var sel = document.getElementById(module + '-device');
-                if (sel) {
-                    deviceIdx = parseInt(sel.value, 10);
-                    // -2 = online feed (OpenSky), -1 = not selected
-                    if (deviceIdx === -1) {
-                        showSetupMsg('Select a device for ' + module.toUpperCase() + ' first', true);
+                var droneIface = '';
+                if (module === 'drone') {
+                    var ifaceSel = document.getElementById('drone-iface');
+                    droneIface = ifaceSel ? ifaceSel.value : '';
+                    if (!droneIface) {
+                        showSetupMsg('Select a WiFi adapter for Drone RID first', true);
                         return;
+                    }
+                } else {
+                    var sel = document.getElementById(module + '-device');
+                    if (sel) {
+                        deviceIdx = parseInt(sel.value, 10);
+                        // -2 = online feed (OpenSky), -1 = not selected
+                        if (deviceIdx === -1) {
+                            showSetupMsg('Select a device for ' + module.toUpperCase() + ' first', true);
+                            return;
+                        }
                     }
                 }
 
                 btn.disabled = true;
                 btn.textContent = 'Starting...';
                 var startBody = {module: module, device: deviceIdx};
+                if (module === 'drone') {
+                    startBody.interface = droneIface;
+                }
                 if (deviceIdx === -2) {
                     var b = map.getBounds();
                     startBody.lamin = b.getSouth();
@@ -1249,7 +1289,12 @@
                     if (data.error) {
                         showSetupMsg(data.error, true);
                     } else {
-                        var srcLabel = deviceIdx === -2 ? 'Online (OpenSky)' : 'device #' + deviceIdx;
+                        var srcLabel;
+                        if (module === 'drone') {
+                            srcLabel = droneIface;
+                        } else {
+                            srcLabel = deviceIdx === -2 ? 'Online (OpenSky)' : 'device #' + deviceIdx;
+                        }
                         showSetupMsg(module.toUpperCase() + ' started on ' + srcLabel, false);
                         // If starting online feed, send current map bounds immediately
                         if (module === 'adsb' && deviceIdx === -2) {
