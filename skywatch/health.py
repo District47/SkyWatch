@@ -94,6 +94,21 @@ def _check_librtlsdr() -> HealthCheck:
         )
 
 
+def _check_vcredist() -> HealthCheck:
+    if platform.system() != "Windows":
+        return HealthCheck("Visual C++ Runtime", "core", "skip",
+                           "not required on this platform")
+    sysdir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32"
+    required = ("MSVCP140.dll", "VCRUNTIME140.dll", "VCRUNTIME140_1.dll")
+    missing = [d for d in required if not (sysdir / d).is_file()]
+    if missing:
+        return HealthCheck("Visual C++ Runtime", "core", "fail",
+                           "missing: " + ", ".join(missing),
+                           "Click 'Install Visual C++ Runtime…' in Settings — required for AIS-catcher.")
+    return HealthCheck("Visual C++ Runtime", "core", "ok",
+                       "MSVCP140 + VCRUNTIME140 present in System32")
+
+
 def _check_npcap() -> HealthCheck:
     if platform.system() != "Windows":
         return HealthCheck("Npcap (WiFi capture driver)", "drone-rid", "skip",
@@ -185,6 +200,7 @@ def run_all() -> list[HealthCheck]:
     checks: list[Callable[[], HealthCheck]] = [
         _check_python,
         _check_bundled_tools_dir,
+        _check_vcredist,
 
         # Core Python modules
         lambda: _module_check("FastAPI", "fastapi", category="core"),

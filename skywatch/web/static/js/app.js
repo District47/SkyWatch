@@ -1229,6 +1229,54 @@
             .catch(function() { panel.classList.add('hidden'); });
     }
 
+    function refreshVcredistPanel() {
+        var panel = document.getElementById('vcredist-panel');
+        var msg = document.getElementById('vcredist-msg');
+        var btn = document.getElementById('vcredist-launch-btn');
+        if (!panel) return;
+        fetch('/api/vcredist/status')
+            .then(function(r) { return r.json(); })
+            .then(function(s) {
+                if (!s.supported) { panel.classList.add('hidden'); return; }
+                if (s.installed) {
+                    // Hide entirely once installed — nothing actionable left.
+                    panel.classList.add('hidden');
+                    return;
+                }
+                panel.classList.remove('hidden');
+                var miss = (s.missing_dlls || []).join(', ');
+                msg.textContent = 'Missing: ' + miss + '. Click to download (~25 MB) and launch the official Microsoft installer.';
+                if (btn) btn.textContent = s.installer_present ? 'Run installer…' : 'Download & install…';
+            })
+            .catch(function() { panel.classList.add('hidden'); });
+    }
+
+    var vcredistBtn = document.getElementById('vcredist-launch-btn');
+    if (vcredistBtn) {
+        vcredistBtn.addEventListener('click', function() {
+            var msg = document.getElementById('vcredist-msg');
+            vcredistBtn.disabled = true;
+            var orig = vcredistBtn.textContent;
+            vcredistBtn.textContent = 'Working…';
+            if (msg) msg.textContent = 'Downloading & launching the Visual C++ Redistributable installer — accept the UAC prompt and step through the wizard.';
+            fetch('/api/vcredist/launch', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.ok) {
+                        if (msg) msg.textContent = 'Installer launched. Click through it, then restart SkyWatch and click Re-check above.';
+                    } else {
+                        if (msg) msg.textContent = 'Could not launch installer: ' + (res.error || 'unknown error');
+                    }
+                })
+                .catch(function(err) { if (msg) msg.textContent = 'Request failed: ' + err.message; })
+                .finally(function() {
+                    vcredistBtn.disabled = false;
+                    vcredistBtn.textContent = orig;
+                    refreshVcredistPanel();
+                });
+        });
+    }
+
     function refreshNpcapPanel() {
         var panel = document.getElementById('npcap-panel');
         var msg = document.getElementById('npcap-msg');
@@ -1319,6 +1367,7 @@
 
         refreshZadigPanel();
         refreshNpcapPanel();
+        refreshVcredistPanel();
         refreshHealth();
 
         loading.style.display = 'block';

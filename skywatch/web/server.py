@@ -30,6 +30,7 @@ from ..util.geo import DEFAULT_LAT, DEFAULT_LON, DEFAULT_RADIUS_KM
 from .manager import Manager, ModuleStatus, DeviceBusy
 from . import zadig
 from . import npcap
+from . import vcredist
 from .. import health as health_mod
 
 log = logging.getLogger("skywatch.web")
@@ -204,6 +205,14 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
     @app.post("/api/npcap/launch")
     async def api_npcap_launch():
         return await asyncio.to_thread(npcap.launch)
+
+    @app.get("/api/vcredist/status")
+    async def api_vcredist_status():
+        return vcredist.status()
+
+    @app.post("/api/vcredist/launch")
+    async def api_vcredist_launch():
+        return await asyncio.to_thread(vcredist.launch)
 
     @app.get("/api/devices")
     async def api_devices():
