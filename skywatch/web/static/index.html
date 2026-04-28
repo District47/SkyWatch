@@ -60,6 +60,19 @@
                     </div>
                 </div>
 
+                <div id="npcap-panel" class="hidden" style="margin-top:10px;padding:10px;border:1px solid #334155;border-radius:6px;background:#0f172a">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                        <div style="flex:1;min-width:220px">
+                            <div style="font-weight:600;font-size:13px">WiFi capture driver (Npcap)</div>
+                            <div id="npcap-msg" style="font-size:12px;color:#94a3b8;margin-top:3px">Required for the WiFi-monitor-mode Drone Remote ID path. Bluetooth Drone-RID works without it.</div>
+                        </div>
+                        <button id="npcap-launch-btn" class="tx-btn-sm" type="button">Install Npcap…</button>
+                    </div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:8px;padding-top:8px;border-top:1px solid #1e293b;line-height:1.5">
+                        <strong style="color:#cbd5e1">In the Npcap installer:</strong> accept the license, leave the defaults checked (especially <em>Install Npcap in WinPcap API-compatible Mode</em> and <em>Support raw 802.11 traffic for wireless adapters</em>), click Install. After it finishes, restart SkyWatch and click <em>Re-check</em> above.
+                    </div>
+                </div>
+
                 <div id="module-controls" class="hidden">
                     <h3>Module Assignment</h3>
 

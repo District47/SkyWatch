@@ -29,6 +29,7 @@ from ..noaa.weather_api import fetch_alerts, fetch_forecast
 from ..util.geo import DEFAULT_LAT, DEFAULT_LON, DEFAULT_RADIUS_KM
 from .manager import Manager, ModuleStatus
 from . import zadig
+from . import npcap
 from .. import health as health_mod
 
 log = logging.getLogger("skywatch.web")
@@ -186,6 +187,14 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         # Off-thread because urlopen + ShellExecuteW are blocking; we don't
         # want to stall the WS broadcaster on a slow GitHub response.
         return await asyncio.to_thread(zadig.launch)
+
+    @app.get("/api/npcap/status")
+    async def api_npcap_status():
+        return npcap.status()
+
+    @app.post("/api/npcap/launch")
+    async def api_npcap_launch():
+        return await asyncio.to_thread(npcap.launch)
 
     @app.get("/api/devices")
     async def api_devices():

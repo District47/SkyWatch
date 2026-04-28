@@ -1229,6 +1229,60 @@
             .catch(function() { panel.classList.add('hidden'); });
     }
 
+    function refreshNpcapPanel() {
+        var panel = document.getElementById('npcap-panel');
+        var msg = document.getElementById('npcap-msg');
+        var btn = document.getElementById('npcap-launch-btn');
+        if (!panel) return;
+        fetch('/api/npcap/status')
+            .then(function(r) { return r.json(); })
+            .then(function(s) {
+                if (!s.supported) { panel.classList.add('hidden'); return; }
+                panel.classList.remove('hidden');
+                if (s.installed) {
+                    msg.textContent = 'Npcap is installed (' + s.installed_path + '). WiFi monitor mode capture is available.';
+                    if (btn) btn.textContent = 'Reinstall Npcap…';
+                } else if (s.installer_present) {
+                    msg.textContent = 'Installer is downloaded but Npcap is not yet installed. Click to launch it (UAC prompt).';
+                } else {
+                    msg.textContent = 'Npcap is not installed. Click to download (~1.5 MB) and launch the official installer.';
+                }
+            })
+            .catch(function() { panel.classList.add('hidden'); });
+    }
+
+    var npcapBtn = document.getElementById('npcap-launch-btn');
+    if (npcapBtn) {
+        npcapBtn.addEventListener('click', function() {
+            var msg = document.getElementById('npcap-msg');
+            npcapBtn.disabled = true;
+            var orig = npcapBtn.textContent;
+            npcapBtn.textContent = 'Working…';
+            if (msg) msg.textContent = 'Downloading & launching the Npcap installer — accept the UAC prompt and step through the wizard.';
+            fetch('/api/npcap/launch', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.ok) {
+                        if (res.already_installed) {
+                            if (msg) msg.textContent = 'Npcap is already installed.';
+                        } else if (msg) {
+                            msg.textContent = 'Installer launched. Step through it, then restart SkyWatch and click Re-check above.';
+                        }
+                    } else {
+                        if (msg) msg.textContent = 'Could not launch installer: ' + (res.error || 'unknown error');
+                    }
+                })
+                .catch(function(err) {
+                    if (msg) msg.textContent = 'Request failed: ' + err.message;
+                })
+                .finally(function() {
+                    npcapBtn.disabled = false;
+                    npcapBtn.textContent = orig;
+                    refreshNpcapPanel();
+                });
+        });
+    }
+
     var zadigBtn = document.getElementById('zadig-launch-btn');
     if (zadigBtn) {
         zadigBtn.addEventListener('click', function() {
@@ -1264,6 +1318,7 @@
         var controls = document.getElementById('module-controls');
 
         refreshZadigPanel();
+        refreshNpcapPanel();
         refreshHealth();
 
         loading.style.display = 'block';
