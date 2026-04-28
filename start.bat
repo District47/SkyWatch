@@ -76,6 +76,9 @@ if "%NEED_INSTALL%"=="1" (
         echo [X] pip install failed. Check the output above.
         goto :fail
     )
+    rem Patch pyrtlsdr for older librtlsdr.dll builds (rtl-sdr-blog v4
+    rem ships without rtlsdr_set_dithering / set_bias_tee). Idempotent.
+    "%VENVPY%" -m skywatch._patch_pyrtlsdr
     echo installed > "%MARKER%"
     echo [OK] Dependencies installed.
 ) else (

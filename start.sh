@@ -53,6 +53,9 @@ if [ "$NEED_INSTALL" = "1" ]; then
     echo "[..] Installing dependencies from requirements.txt ..."
     "$VENVPY" -m pip install --upgrade pip >/dev/null
     "$VENVPY" -m pip install -r requirements.txt
+    # Patch pyrtlsdr for older librtlsdr builds that lack newer symbols
+    # like rtlsdr_set_dithering. Idempotent.
+    "$VENVPY" -m skywatch._patch_pyrtlsdr || true
     echo "installed" > "$MARKER"
     echo "[OK] Dependencies installed."
 else

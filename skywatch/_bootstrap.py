@@ -59,3 +59,13 @@ def configure_bundled_tools() -> Optional[Path]:
 
 # Run on import so all later subprocess and ctypes calls already see it.
 BUNDLED_TOOLS_DIR = configure_bundled_tools()
+
+# Self-heal pyrtlsdr if a fresh install is missing the missing-symbol shim.
+# Must run before any `import rtlsdr` so the patched module loads cleanly.
+try:
+    from . import _patch_pyrtlsdr
+    _result = _patch_pyrtlsdr.patch(verbose=False)
+    if _result == "patched":
+        log.info("pyrtlsdr auto-patched for older librtlsdr builds")
+except Exception as e:
+    log.debug("pyrtlsdr patch attempt failed: %s", e)
