@@ -80,22 +80,36 @@ class WebSocketHub:
         self._dirty.set()
 
     async def run_broadcaster(self, snapshot_fn) -> None:
+        # Force-flush every N seconds even without a dirty event, so a
+        # silently-dropped notification can never starve the dashboard of
+        # updates. Each iteration is wrapped so a single bad cycle doesn't
+        # kill the task.
+        force_interval = 3.0
         while True:
-            await self._dirty.wait()
-            self._dirty.clear()
-            elapsed = time.monotonic() - self._last_broadcast
-            if elapsed < _BROADCAST_MIN_INTERVAL:
-                await asyncio.sleep(_BROADCAST_MIN_INTERVAL - elapsed)
-            payload = await snapshot_fn()
-            self._last_broadcast = time.monotonic()
-            async with self._lock:
-                clients = list(self._clients)
-            data = json.dumps(payload, default=lambda o: getattr(o, "to_json", lambda: o.__dict__)())
-            for ws in clients:
+            try:
                 try:
-                    await ws.send_text(data)
-                except Exception:
-                    await self.remove(ws)
+                    await asyncio.wait_for(self._dirty.wait(), timeout=force_interval)
+                except asyncio.TimeoutError:
+                    pass  # periodic forced refresh
+                self._dirty.clear()
+                elapsed = time.monotonic() - self._last_broadcast
+                if elapsed < _BROADCAST_MIN_INTERVAL:
+                    await asyncio.sleep(_BROADCAST_MIN_INTERVAL - elapsed)
+                payload = await snapshot_fn()
+                self._last_broadcast = time.monotonic()
+                async with self._lock:
+                    clients = list(self._clients)
+                if not clients:
+                    continue
+                data = json.dumps(payload, default=lambda o: getattr(o, "to_json", lambda: o.__dict__)())
+                for ws in clients:
+                    try:
+                        await ws.send_text(data)
+                    except Exception:
+                        await self.remove(ws)
+            except Exception as e:
+                log.warning("ws broadcaster cycle error: %s", e)
+                await asyncio.sleep(1.0)
 
 
 def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
