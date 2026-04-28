@@ -37,16 +37,18 @@ The dashboard is one page; tabs on the right side filter the map and right pane 
 
 ## Quick start
 
+**Easiest path — one click / one command:**
+
+| Platform | Command |
+|---|---|
+| Windows | double-click `start.bat` (or `start.bat` from cmd) |
+| Linux / macOS | `./start.sh` |
+
+The launcher creates a `.venv`, installs everything from `requirements.txt`, and starts the server on `http://localhost:8080`. On subsequent runs it skips install (only re-runs pip when `requirements.txt` changes), so it's also the everyday way to launch the app. Any flags you pass are forwarded — e.g. `start.bat -wifi wlan0`.
+
+**Manual (no launcher):**
+
 ```bash
-# from the project root
-pip install -r requirements.txt
-python -m skywatch -addr :8080
-```
-
-PowerShell:
-
-```powershell
-cd C:\path\to\SkyWatch
 pip install -r requirements.txt
 python -m skywatch -addr :8080
 ```
