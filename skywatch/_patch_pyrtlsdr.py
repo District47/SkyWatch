@@ -76,6 +76,13 @@ def patch(verbose: bool = False) -> str:
         if PATCH_MARKER in text:
             if verbose: print(f"[ok]   {src} already patched")
             return "already"
+        # An older hand-written patch (or someone else's) may already have
+        # defined _LibWrapper. Re-applying ours on top would create nested
+        # wrappers and the inner _MissingFuncStub class might shadow ours
+        # incompatibly. Bail out and let whatever is there keep working.
+        if "_LibWrapper" in text or "_MissingFuncStub" in text:
+            if verbose: print(f"[skip] {src} already has a wrapper class; not re-patching")
+            return "already"
 
         target = "librtlsdr = load_librtlsdr()"
         if target not in text:
