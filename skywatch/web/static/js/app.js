@@ -151,10 +151,23 @@
     });
 
     // ── Map setup ──
+    // Restore last view from localStorage so the user doesn\'t have to
+    // re-zoom every session.
+    var _savedView = null;
+    try {
+        _savedView = JSON.parse(localStorage.getItem('skywatch.map.view') || 'null');
+    } catch (e) { _savedView = null; }
     var map = L.map('map', {
-        center: [39.8283, -98.5795],
-        zoom: 5,
+        center: (_savedView && _savedView.lat != null) ? [_savedView.lat, _savedView.lon] : [39.8283, -98.5795],
+        zoom: (_savedView && _savedView.zoom != null) ? _savedView.zoom : 5,
         zoomControl: true,
+    });
+    map.on('moveend zoomend', function() {
+        var c = map.getCenter();
+        try {
+            localStorage.setItem('skywatch.map.view',
+                JSON.stringify({ lat: c.lat, lon: c.lng, zoom: map.getZoom() }));
+        } catch (e) {}
     });
 
     function applyMapStyle(styleId) {
