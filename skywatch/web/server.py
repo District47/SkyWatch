@@ -28,6 +28,7 @@ from ..noaa import NOAA_SATELLITES, NWR_TRANSMITTERS
 from ..noaa.weather_api import fetch_alerts, fetch_forecast
 from ..util.geo import DEFAULT_LAT, DEFAULT_LON, DEFAULT_RADIUS_KM
 from .manager import Manager, ModuleStatus
+from . import zadig
 
 log = logging.getLogger("skywatch.web")
 
@@ -163,6 +164,16 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
     @app.get("/api/targets")
     async def api_targets():
         return await snapshot()
+
+    @app.get("/api/zadig/status")
+    async def api_zadig_status():
+        return zadig.status()
+
+    @app.post("/api/zadig/launch")
+    async def api_zadig_launch():
+        # Off-thread because urlopen + ShellExecuteW are blocking; we don't
+        # want to stall the WS broadcaster on a slow GitHub response.
+        return await asyncio.to_thread(zadig.launch)
 
     @app.get("/api/devices")
     async def api_devices():

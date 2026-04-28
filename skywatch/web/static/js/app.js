@@ -1155,11 +1155,57 @@
         if (e.target === this) closeSetup();
     });
 
+    function refreshZadigPanel() {
+        var panel = document.getElementById('zadig-panel');
+        var msg = document.getElementById('zadig-msg');
+        if (!panel) return;
+        fetch('/api/zadig/status')
+            .then(function(r) { return r.json(); })
+            .then(function(s) {
+                if (!s.supported) { panel.classList.add('hidden'); return; }
+                panel.classList.remove('hidden');
+                msg.textContent = s.present
+                    ? 'Zadig is downloaded and ready. Use it to bind WinUSB to your RTL-SDR if Windows is using a different driver.'
+                    : 'Zadig is not yet downloaded. Clicking the button will fetch ~5 MB from the official source and launch it (UAC prompt).';
+            })
+            .catch(function() { panel.classList.add('hidden'); });
+    }
+
+    var zadigBtn = document.getElementById('zadig-launch-btn');
+    if (zadigBtn) {
+        zadigBtn.addEventListener('click', function() {
+            var msg = document.getElementById('zadig-msg');
+            zadigBtn.disabled = true;
+            var orig = zadigBtn.textContent;
+            zadigBtn.textContent = 'Working…';
+            if (msg) msg.textContent = 'Downloading & launching Zadig — accept the UAC prompt when it appears.';
+            fetch('/api/zadig/launch', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.ok) {
+                        if (msg) msg.textContent = 'Zadig launched. In its window: Options → List All Devices, pick your RTL2832U/Bulk-In, set the target driver to WinUSB, click Replace Driver. Close Zadig and click "Scanning for RTL-SDR" again.';
+                    } else {
+                        if (msg) msg.textContent = 'Could not launch Zadig: ' + (res.error || 'unknown error');
+                    }
+                })
+                .catch(function(err) {
+                    if (msg) msg.textContent = 'Request failed: ' + err.message;
+                })
+                .finally(function() {
+                    zadigBtn.disabled = false;
+                    zadigBtn.textContent = orig;
+                    refreshZadigPanel();
+                });
+        });
+    }
+
     function loadDevices() {
         var loading = document.getElementById('devices-loading');
         var errEl = document.getElementById('devices-error');
         var listEl = document.getElementById('devices-list');
         var controls = document.getElementById('module-controls');
+
+        refreshZadigPanel();
 
         loading.style.display = 'block';
         errEl.classList.add('hidden');
