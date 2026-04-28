@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..tracker import Tracker
-from ..adsb import ADSB, ADSBConfig, OpenSky, OpenSkyConfig, AircraftDB
+from ..adsb import ADSB, ADSBConfig, OpenSky, OpenSkyConfig, NativeADSB, NativeADSBConfig, AircraftDB
 from ..ais import AIS, AISConfig, AISStream, AISStreamConfig
 from ..aprs import APRSStore, APRSISClient, APRSISConfig
 from ..noaa import NOAATracker, NWRReceiver, APTCapture, APTConfig, CaptureResult
@@ -39,6 +39,7 @@ class Manager:
         self.aprs_store = aprs_store
         self.aircraft_db = AircraftDB(Path("data/aircraft.json"))
         self.adsb: Optional[ADSB] = None
+        self.adsb_native: Optional[NativeADSB] = None
         self.opensky: Optional[OpenSky] = None
         self.ais: Optional[AIS] = None
         self.aisstream: Optional[AISStream] = None
@@ -61,7 +62,10 @@ class Manager:
         return dict(self._device_assignments)
 
     async def status(self) -> list[ModuleStatus]:
-        adsb_running = bool(self.adsb and self.adsb._task and not self.adsb._task.done())
+        adsb_running = bool(
+            (self.adsb and self.adsb._task and not self.adsb._task.done())
+            or (self.adsb_native and self.adsb_native.running)
+        )
         opensky_running = bool(self.opensky and self.opensky._task and not self.opensky._task.done())
         ais_running = bool(self.ais and self.ais._task and not self.ais._task.done())
         aisstream_running = bool(self.aisstream and self.aisstream._task and not self.aisstream._task.done())
@@ -71,9 +75,13 @@ class Manager:
         # signals "online feed" to the dashboard.
         out = [
             ModuleStatus(name="adsb",
-                         enabled=self.adsb is not None or self.opensky is not None,
+                         enabled=(self.adsb is not None) or (self.adsb_native is not None) or (self.opensky is not None),
                          running=adsb_running or opensky_running,
-                         device=(self.adsb.cfg.device_index if adsb_running else (-2 if opensky_running else -1))),
+                         device=(
+                             self.adsb_native.cfg.device_index if (self.adsb_native and self.adsb_native.running)
+                             else self.adsb.cfg.device_index if (self.adsb and self.adsb._task and not self.adsb._task.done())
+                             else (-2 if opensky_running else -1)
+                         )),
             ModuleStatus(name="ais",
                          enabled=self.ais is not None or self.aisstream is not None,
                          running=ais_running or aisstream_running,
@@ -104,17 +112,31 @@ class Manager:
 
     async def start_adsb(self, device: int, gain: float = 0.0, readsb_path: str = "readsb",
                         external_host: str = "") -> None:
+        """Start ADS-B. Picks the native pure-Python decoder when a real device
+        index is given (no readsb binary required). The legacy readsb-spawn
+        path is still used when external_host is provided."""
         async with self._lock:
             if self.adsb:
                 await self.adsb.stop()
-            cfg = ADSBConfig(
-                readsb_path=readsb_path, device_index=device, gain=gain,
-                external_host=external_host, db=self.aircraft_db,
-            )
-            self.adsb = ADSB(cfg, self.tracker)
-            await self.adsb.start()
-            if device >= 0 and not external_host:
-                self._device_assignments[device] = "adsb"
+                self.adsb = None
+            if self.adsb_native:
+                await self.adsb_native.stop()
+                self.adsb_native = None
+
+            if external_host:
+                cfg = ADSBConfig(
+                    readsb_path=readsb_path, device_index=device, gain=gain,
+                    external_host=external_host, db=self.aircraft_db,
+                )
+                self.adsb = ADSB(cfg, self.tracker)
+                await self.adsb.start()
+            else:
+                self.adsb_native = NativeADSB(NativeADSBConfig(
+                    device_index=device, gain=gain, db=self.aircraft_db,
+                ), self.tracker)
+                await self.adsb_native.start()
+                if device >= 0:
+                    self._device_assignments[device] = "adsb"
 
     async def stop_adsb(self) -> None:
         async with self._lock:
@@ -122,6 +144,11 @@ class Manager:
                 dev = self.adsb.cfg.device_index
                 await self.adsb.stop()
                 self.adsb = None
+                self._device_assignments.pop(dev, None)
+            if self.adsb_native:
+                dev = self.adsb_native.cfg.device_index
+                await self.adsb_native.stop()
+                self.adsb_native = None
                 self._device_assignments.pop(dev, None)
 
     async def start_opensky(self, lat: float = 0.0, lon: float = 0.0, radius_km: float = 0.0) -> None:
