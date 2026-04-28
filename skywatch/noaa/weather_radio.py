@@ -159,11 +159,17 @@ class NWRReceiver:
             return
         sample_count = 0
         sq_sum = 0.0
+        first_chunk = True
         try:
             while True:
                 chunk = await self._proc.stdout.read(4096)
                 if not chunk:
+                    log.info("NWR pump: rtl_fm stdout closed")
                     break
+                if first_chunk:
+                    log.info("NWR pump: first audio chunk (%d bytes), %d subscriber(s)",
+                             len(chunk), len(self._subscribers))
+                    first_chunk = False
                 # RMS for signal-level feedback (1-sec window).
                 samples = struct.unpack(f"<{len(chunk)//2}h", chunk[: (len(chunk)//2) * 2])
                 for s in samples:
@@ -187,6 +193,7 @@ class NWRReceiver:
         """Yield WAV-encapsulated bytes for an HTTP audio client."""
         q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=64)
         self._subscribers.append(q)
+        log.info("NWR stream: subscriber connected (%d total)", len(self._subscribers))
         try:
             yield wav_header_streaming()
             while True:
@@ -199,6 +206,7 @@ class NWRReceiver:
                 self._subscribers.remove(q)
             except ValueError:
                 pass
+            log.info("NWR stream: subscriber disconnected (%d remaining)", len(self._subscribers))
 
     async def scan(self, device: int = 0) -> list[NWRChannelScan]:
         """Briefly tune each NWR frequency, measure RMS, return sorted results."""
