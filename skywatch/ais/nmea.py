@@ -45,7 +45,11 @@ class AIS:
         self._proc: Optional[asyncio.subprocess.Process] = None
         self._stop = asyncio.Event()
         self._task: Optional[asyncio.Task] = None
+        # Counters mirror the ADS-B native decoder: total sentences seen,
+        # successful pyais decodes, rejects (parse failure or non-AIVDM noise).
+        self._sentences = 0
         self._msgs = 0
+        self._rejected = 0
 
     async def start(self) -> None:
         if self._task and not self._task.done():
@@ -159,14 +163,21 @@ class AIS:
                     del buf[: nl + 1]
                     if not line.startswith(b"!AIV"):
                         continue
+                    self._sentences += 1
                     try:
+                        any_decoded = False
                         for decoded in IterMessages([line]):
+                            any_decoded = True
                             self._msgs += 1
                             await self._ingest(decoded.decode())
+                        if not any_decoded:
+                            self._rejected += 1
                     except Exception as e:
+                        self._rejected += 1
                         log.debug("AIS decode failed: %s", e)
                 if (time.monotonic() - last_stats) >= _STATS_INTERVAL:
-                    log.info("AIS stats: %d messages parsed", self._msgs)
+                    log.info("AIS: %d sentences, %d decoded, %d rejected",
+                             self._sentences, self._msgs, self._rejected)
                     last_stats = time.monotonic()
         finally:
             try:
