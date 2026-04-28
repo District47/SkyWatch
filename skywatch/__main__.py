@@ -101,15 +101,15 @@ def main(argv: list[str] | None = None) -> int:
 
     static_dir = Path(__file__).parent / "web" / "static"
     app = build_app(tracker=tracker, aprs_store=aprs_store, manager=manager,
-                    alerts=alerts, static_dir=static_dir, args=args)
-
-    @app.on_event("startup")
-    async def _bootstrap_modules() -> None:
-        await _bootstrap(args, manager)
+                    alerts=alerts, static_dir=static_dir, args=args,
+                    extra_startup=lambda: _bootstrap(args, manager))
 
     host, port = _split_addr(args.addr)
     log.info("SkyWatch %s listening on http://%s:%d", __version__, host, port)
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    # access_log=False drops the per-request "GET /api/status 200 OK" lines
+    # that the dashboard's polling loops produce constantly. App-level
+    # INFOs (module starts, errors, weather.gov calls) still print.
+    uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)
     return 0
 
 

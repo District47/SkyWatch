@@ -116,8 +116,36 @@ class WebSocketHub:
 
 
 def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
-              alerts=None, static_dir: Path, args=None) -> FastAPI:
-    app = FastAPI(title="SkyWatch", version="1.0.0")
+              alerts=None, static_dir: Path, args=None, extra_startup=None) -> FastAPI:
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _lifespan(_app: FastAPI):
+        # Startup
+        asyncio.create_task(hub.run_broadcaster(snapshot), name="ws-broadcaster")
+        async def _pruner():
+            while True:
+                await asyncio.sleep(10.0)
+                try:
+                    await tracker.prune(300)
+                    await aprs_store.prune()
+                    hub.mark_dirty()
+                except Exception:
+                    pass
+        asyncio.create_task(_pruner(), name="pruner")
+        if extra_startup is not None:
+            try:
+                await extra_startup()
+            except Exception as e:
+                log.warning("extra_startup failed: %s", e)
+        yield
+        # Shutdown
+        try:
+            await manager.shutdown()
+        except Exception as e:
+            log.warning("manager shutdown error: %s", e)
+
+    app = FastAPI(title="SkyWatch", version="1.0.0", lifespan=_lifespan)
     hub = WebSocketHub()
     api_keys: dict = _load_api_keys()
 
@@ -141,25 +169,6 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         # When an alert fires, mark the WS dirty so the new event ships out
         # to clients on the next broadcast tick.
         alerts.set_event_callback(lambda _ev: hub.mark_dirty())
-
-    @app.on_event("startup")
-    async def _startup() -> None:
-        asyncio.create_task(hub.run_broadcaster(snapshot), name="ws-broadcaster")
-        # Periodic prune.
-        async def _pruner():
-            while True:
-                await asyncio.sleep(10.0)
-                try:
-                    await tracker.prune(300)
-                    await aprs_store.prune()
-                    hub.mark_dirty()
-                except Exception:
-                    pass
-        asyncio.create_task(_pruner(), name="pruner")
-
-    @app.on_event("shutdown")
-    async def _shutdown() -> None:
-        await manager.shutdown()
 
     # ---- Targets / status ----
 
