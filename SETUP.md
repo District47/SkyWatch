@@ -4,6 +4,16 @@ SkyWatch is pure Python, but to use real RTL-SDR and WiFi hardware it shells out
 
 If you only want online feeds (OpenSky aircraft + aisstream.io vessels + APRS-IS + weather alerts), you can skip everything in §3–§7 and just install Python deps (§1).
 
+## Quick path: bundled `tools/` folder
+
+If you populate `tools/<platform>/` inside the project (see [tools/README.md](tools/README.md)), SkyWatch auto-prepends it to PATH and to the Windows DLL search at startup. **No system install of librtlsdr / AIS-catcher / rtl_fm required.** Drop the binaries into `tools/win64/` once and the whole repo becomes a self-contained shippable folder. Verify with:
+
+```bash
+python -c "from skywatch._bootstrap import BUNDLED_TOOLS_DIR; print(BUNDLED_TOOLS_DIR)"
+```
+
+The rest of this document covers the system-install path for users who prefer that.
+
 ---
 
 ## 1. Python (all OSes)

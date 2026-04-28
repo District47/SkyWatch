@@ -12,6 +12,14 @@ data/api_keys.json
 data/alert_zones.json
 noaa_images/
 
+# Bundled native binaries — copy your own in to ship a portable build.
+# Delete the line below if you DO want to commit them.
+tools/win64/
+tools/win32/
+tools/linux64/
+tools/darwin-arm64/
+tools/darwin-x64/
+
 # OS
 .DS_Store
 Thumbs.db
