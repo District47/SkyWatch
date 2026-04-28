@@ -93,6 +93,11 @@ def main(argv: list[str] | None = None) -> int:
     aprs_store = APRSStore()
     alerts = AlertManager(tracker)
     manager = Manager(tracker, aprs_store)
+    # Push CLI-provided binary paths onto the manager so the dashboard's
+    # Start buttons see them.
+    manager.readsb_path = args.readsb
+    manager.rtl_ais_path = args.rtl_ais
+    manager.ais_catcher_path = args.ais_catcher
 
     static_dir = Path(__file__).parent / "web" / "static"
     app = build_app(tracker=tracker, aprs_store=aprs_store, manager=manager,

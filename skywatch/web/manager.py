@@ -38,6 +38,10 @@ class Manager:
         self.tracker = tracker
         self.aprs_store = aprs_store
         self.aircraft_db = AircraftDB(Path("data/aircraft.json"))
+        # CLI-overridable binary paths the dashboard's Start button uses.
+        self.readsb_path: str = "readsb"
+        self.rtl_ais_path: str = "rtl_ais"
+        self.ais_catcher_path: str = "AIS-catcher"
         self.adsb: Optional[ADSB] = None
         self.adsb_native: Optional[NativeADSB] = None
         self.opensky: Optional[OpenSky] = None
@@ -169,13 +173,14 @@ class Manager:
                 await self.opensky.stop()
                 self.opensky = None
 
-    async def start_ais(self, device: int, gain: float = 0.0, rtl_ais_path: str = "rtl_ais",
-                       ais_catcher_path: str = "AIS-catcher", external_host: str = "") -> None:
+    async def start_ais(self, device: int, gain: float = 0.0, rtl_ais_path: Optional[str] = None,
+                       ais_catcher_path: Optional[str] = None, external_host: str = "") -> None:
         async with self._lock:
             if self.ais:
                 await self.ais.stop()
             self.ais = AIS(AISConfig(
-                rtl_ais_path=rtl_ais_path, ais_catcher_path=ais_catcher_path,
+                rtl_ais_path=rtl_ais_path or self.rtl_ais_path,
+                ais_catcher_path=ais_catcher_path or self.ais_catcher_path,
                 device_index=device, gain=gain, external_host=external_host,
             ), self.tracker)
             await self.ais.start()
