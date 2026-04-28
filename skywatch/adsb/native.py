@@ -140,7 +140,15 @@ class NativeADSB:
             sdr = RtlSdr(device_index=self.cfg.device_index)
             sdr.sample_rate = _SAMPLE_RATE
             sdr.center_freq = _CENTER_FREQ
-            sdr.gain = "auto" if not self.cfg.gain else self.cfg.gain
+            # 'auto' gain doesn't reliably engage on V4 dongles when some
+            # librtlsdr setters are stubbed out, leaving the tuner near 0 dB.
+            # Force a near-max gain instead — the R828D tuner snaps to the
+            # closest supported step.
+            target_gain = self.cfg.gain if self.cfg.gain else 49.6
+            try:
+                sdr.gain = target_gain
+            except Exception:
+                pass
             log.info("native ADS-B reading from device %d at %.3f MHz, gain=%s",
                      self.cfg.device_index, _CENTER_FREQ / 1e6, sdr.gain)
             tail = np.zeros(_TOTAL_LEN, dtype=np.float32)
