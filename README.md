@@ -30,7 +30,8 @@ The dashboard is one page; tabs on the right side filter the map and right pane 
 | NOAA satellite tracking (SGP4) | yes | yes | yes |
 | NOAA APT image capture (`rtl_fm`) | yes | yes | yes |
 | NOAA Weather Radio (`rtl_fm`) | yes | yes | yes |
-| Drone Remote ID (WiFi monitor mode) | yes | yes (compatible USB adapter) | yes (Npcap + compatible USB adapter, e.g. Alfa AWUS036ACH/NHA) |
+| Drone Remote ID — **WiFi monitor mode** | yes | yes (compatible USB adapter) | yes — **requires [Npcap](https://npcap.com/) AND a chipset whose driver supports monitor mode** (e.g. Alfa AWUS036NHA / AR9271). Most generic / built-in WiFi cards will NOT work. See [SETUP.md §6](SETUP.md#6-drone-remote-id). |
+| Drone Remote ID — **Bluetooth LE** | yes | yes | yes — uses host Bluetooth, no extra hardware. Catches DJI broadcasts. |
 | APRS-IS gateway | yes | yes | yes |
 | weather.gov forecasts/alerts | yes | yes | yes |
 

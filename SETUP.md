@@ -185,16 +185,25 @@ rtl_fm -h
 
 ---
 
-## 6. Drone Remote ID — Npcap + monitor-mode WiFi adapter
+## 6. Drone Remote ID
 
-Required to sniff drone position broadcasts. Two separate prerequisites:
+SkyWatch listens for drone Remote ID broadcasts on **two independent radio bands**. Each is set up separately, and a drone broadcasting on either is enough to put it on the map.
 
-### 6a. Npcap (Windows only)
+### 6.0 What gets you the most coverage
 
-The kernel driver scapy uses for raw 802.11 capture. Without it, the WiFi sniffer cannot see any packets.
+| Band | What you need | Hard or easy? |
+|---|---|---|
+| **Bluetooth LE** | The host's built-in Bluetooth radio (already on every laptop) | **Trivial** — works out of the box. Catches DJI Mini 3 / Mini 4 Pro / Mavic 3 / Air 3 etc. |
+| **WiFi 802.11 monitor mode** | Npcap + a *specific* USB WiFi adapter (see below) | **Often a fight on Windows** — most adapters can't do it |
+
+If you only want DJI drones, **BLE alone is usually enough** and you can skip the WiFi-monitor section entirely.
+
+### 6.1 Npcap — REQUIRED on Windows for the WiFi path
+
+The Windows kernel driver scapy uses for raw 802.11 capture. Without it, the WiFi sniffer cannot see any packets, period.
 
 1. Download Npcap: https://npcap.com/#download
-2. Run the installer. **Check both** boxes:
+2. Run the installer. **Check both** boxes during install:
    - ✅ **"Support raw 802.11 traffic (and monitor mode) for wireless adapters"**
    - ✅ **"Install Npcap in WinPcap API-compatible Mode"**
 3. Reboot.
@@ -209,35 +218,51 @@ You should see no `WARNING: No libpcap provider available` and a non-empty list.
 
 On Linux/macOS, libpcap ships with the OS — no separate install.
 
-### 6b. A WiFi adapter that supports 802.11 monitor mode
+### 6.2 A WiFi adapter that *actually* supports monitor mode
 
-This is the part most people get wrong. A driver-supported monitor-mode adapter is mandatory; built-in laptop WiFi almost never works on Windows or modern macOS.
+> **⚠️ Not every WiFi adapter can do this.** Even with Npcap installed correctly, the host driver has to expose 802.11 monitor mode, and most consumer drivers (especially built-in laptop chipsets and cheap USB sticks) refuse. Buying a generic "USB WiFi" or relying on your laptop's internal card is the #1 reason WiFi RID doesn't work.
 
-**Known-good adapters:**
+**Known-good adapters (Windows + Npcap):**
 
 | Adapter | Chipset | Notes |
 |---|---|---|
-| **Alfa AWUS036NHA** | Atheros AR9271 | The reference choice — 2.4 GHz, monitor mode is rock solid on all OSes. |
-| **Alfa AWUS036ACH / ACHM** | Realtek RTL8812AU | 2.4 + 5 GHz, monitor mode works with the right driver. |
-| **TP-Link TL-WN722N v1** | Atheros AR9271 (same as Alfa NHA) | Cheap; only the **v1** works — v2/v3 use a Realtek that won't monitor. |
+| **Alfa AWUS036NHA** | Atheros AR9271 | The reference choice. 2.4 GHz only, no Wi-Fi 6, but monitor mode is rock solid with no driver hacks. ~$30. |
+| **Alfa AWUS036ACH / ACHM** | Realtek RTL8812AU | 2.4 + 5 GHz, monitor mode works **only with the morrownr driver**: https://github.com/morrownr/8812au-20210820 |
+| **TP-Link TL-WN722N v1** | Atheros AR9271 | Same chip as the Alfa NHA — cheap and works. **Only the v1** — v2/v3 use a Realtek that won't monitor. |
 
-**Adapters that usually do NOT work for monitor mode on Windows:**
+**Known-bad adapters on Windows (despite the marketing):**
 
-- Edimax N150 / similar Realtek RTL8188 USB sticks
-- Any built-in Intel / Killer / Broadcom WiFi
-- Anything using a Microsoft Wi-Fi Direct Virtual driver
+| Adapter | Chipset | Why it fails |
+|---|---|---|
+| **Alfa AWUS036AXML** | MediaTek MT7921AU | Wi-Fi 6 / 6E hardware, but the Windows driver only exposes client mode. Monitor mode is **broken** on Windows; works fine on Linux. |
+| **Edimax N150 / EW-7811Un** | Realtek RTL8188 | Driver doesn't expose monitor mode at all. |
+| Any built-in laptop WiFi | Intel / Killer / Broadcom / MediaTek | Monitor mode is locked off in the Windows driver. |
+| **Anything using "Microsoft Wi-Fi Direct Virtual"** | (virtual adapter) | Not a real radio. |
 
-### 6c. Verify drone scanning
+If you need Wi-Fi 6 monitor mode, the realistic path on Windows is to install [usbipd-win](https://github.com/dorssel/usbipd-win) and pass the adapter through to **WSL2**, where the Linux driver supports it.
 
-In the dashboard's **Drones** tab, pick your adapter from the dropdown and click **Start**. The status box at the bottom shows live counters:
+### 6.3 Verify drone scanning
 
-- **📡 Frames > 0** — adapter is capturing packets ✅
-- **mgmt > 0** — beacons / probe responses being seen ✅ (this means monitor mode is real)
-- **🛸 Drone RID frames** — only fires when a drone is broadcasting nearby
+On the **Drones** tab, pick your adapter from the dropdown and click **Start**. The status box reports both bands live:
 
-If `Frames > 0` but `mgmt = 0`, the adapter is in normal mode, not monitor mode. The Drone-RID part won't work — switch to one of the known-good adapters above.
+```
+WiFi sniff
+  📡 Frames: <total raw 802.11 frames>
+       mgmt: <beacons + probe-responses>
+  🛸 Drone RID: <frames containing the ASTM F3411 vendor IE>
+Bluetooth LE
+  📶 Adv frames: <BLE advertisements seen>
+  🛸 Drone RID: <BLE service-data frames with UUID 0xFFFA>
+```
 
-You can sanity-check Drone RID detection without owning a drone by using the Open Drone ID Android app, which broadcasts a synthetic RID for testing.
+| What you see | Verdict |
+|---|---|
+| `Frames > 0`, `mgmt > 0` | WiFi monitor mode is working ✅ |
+| `Frames > 0`, `mgmt = 0` | Adapter sniffing but not in monitor mode — driver/chipset limitation. Switch adapter or use BLE. |
+| `Frames = 0` | Driver not loaded for the chipset, or wrong adapter selected. |
+| `BLE Adv frames > 0` | BLE scanner is healthy ✅ — DJI broadcasts will land here. |
+
+You can sanity-check the parser without flying anything by installing the **Open Drone ID** Android app, which broadcasts a synthetic RID over both bands.
 
 ---
 
