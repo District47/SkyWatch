@@ -57,23 +57,22 @@ _LOW_IDX = np.array([i for i in range(_PREAMBLE_LEN) if i not in {0, 2, 7, 9}], 
 # latency but more Python overhead per chunk; larger = bigger memory copies.
 _CHUNK_SAMPLES = 256 * 1024
 
-# Mode-S CRC-24 polynomial (G = 0xFFF409).
-_GENERATOR = 0xFFF409
+# Mode-S CRC-24 generator polynomial.
+# Spec polynomial: x^24 + x^23 + ... + 1 = 0x1FFF409 (25 bits, including the
+# implicit leading 1). The leading 1 is what clears the current high bit
+# during shift-and-XOR division — omitting it leaves bit 111 set forever
+# and CRC always fails.
+_GENERATOR = 0x1FFF409
 
 
 def _modes_crc(msg_bytes: bytes) -> int:
-    """Compute Mode-S CRC-24 of a 14-byte message; return remainder. 0 = valid."""
-    data = int.from_bytes(msg_bytes, "big") << 24  # shift in 24 zero bits
-    data >>= 24                                     # actually: 14 bytes already include CRC
-    # Standard Mode-S CRC: shift left over 88 data bits, last 24 = CRC field.
-    # Implementation: process all 112 bits.
+    """Compute Mode-S CRC-24 of a 14-byte (112-bit) message.
+    Returns the remainder; 0 means the frame's CRC field matches the data."""
     val = int.from_bytes(msg_bytes, "big")
-    # Pad to 112 + 24 then divide. Simpler: walk bits.
-    crc = val
-    for i in range(88):  # 112 bits total, last 24 are checksum
-        if crc & (1 << (111 - i)):
-            crc ^= _GENERATOR << (87 - i)
-    return crc & 0xFFFFFF
+    for i in range(88):
+        if val & (1 << (111 - i)):
+            val ^= _GENERATOR << (87 - i)
+    return val & 0xFFFFFF
 
 
 @dataclass
