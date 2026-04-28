@@ -33,6 +33,10 @@ class ModuleStatus:
         return self.__dict__
 
 
+class DeviceBusy(Exception):
+    """Raised when a module tries to claim an RTL-SDR already used by another."""
+
+
 class Manager:
     def __init__(self, tracker: Tracker, aprs_store: APRSStore) -> None:
         self.tracker = tracker
@@ -64,6 +68,17 @@ class Manager:
 
     def assigned_devices(self) -> dict[int, str]:
         return dict(self._device_assignments)
+
+    def _check_device_free(self, device: int, claimer: str) -> None:
+        """Raise DeviceBusy if device is already claimed by another module."""
+        if device < 0:
+            return
+        owner = self._device_assignments.get(device)
+        if owner and owner != claimer:
+            raise DeviceBusy(
+                f"RTL-SDR #{device} is already in use by {owner}. "
+                f"Stop {owner} first, then start {claimer}."
+            )
 
     async def status(self) -> list[ModuleStatus]:
         adsb_running = bool(
@@ -121,6 +136,7 @@ class Manager:
         index is given (no readsb binary required). The legacy readsb-spawn
         path is still used when external_host is provided."""
         async with self._lock:
+            self._check_device_free(device, "adsb")
             if self.adsb:
                 await self.adsb.stop()
                 self.adsb = None
@@ -178,6 +194,8 @@ class Manager:
     async def start_ais(self, device: int, gain: float = 0.0, rtl_ais_path: Optional[str] = None,
                        ais_catcher_path: Optional[str] = None, external_host: str = "") -> None:
         async with self._lock:
+            if not external_host:
+                self._check_device_free(device, "ais")
             if self.ais:
                 await self.ais.stop()
             self.ais = AIS(AISConfig(
@@ -260,6 +278,21 @@ class Manager:
                     pass
                 self.remoteid_ble = None
 
+    async def start_nwr(self, frequency_mhz: float, device: int = 0) -> None:
+        """Start NWR with device-conflict tracking."""
+        async with self._lock:
+            self._check_device_free(device, "nwr")
+            await self.nwr.start(frequency_mhz, device)
+            if device >= 0 and self.nwr.status.running:
+                self._device_assignments[device] = "nwr"
+
+    async def stop_nwr(self) -> None:
+        async with self._lock:
+            dev = self.nwr.status.device
+            await self.nwr.stop()
+            if dev in self._device_assignments and self._device_assignments[dev] == "nwr":
+                self._device_assignments.pop(dev, None)
+
     async def start_noaa_tracker(self, lat: float = 0.0, lon: float = 0.0) -> None:
         self.noaa_tracker.set_observer(lat, lon)
         await self.noaa_tracker.start()
@@ -275,7 +308,7 @@ class Manager:
     async def shutdown(self) -> None:
         for stop in (
             self.stop_adsb, self.stop_opensky, self.stop_ais, self.stop_aisstream,
-            self.stop_aprs_is, self.stop_remoteid,
+            self.stop_aprs_is, self.stop_remoteid, self.stop_nwr,
         ):
             try:
                 await stop()
@@ -283,9 +316,5 @@ class Manager:
                 log.warning("shutdown step %s: %s", stop, e)
         try:
             await self.noaa_tracker.stop()
-        except Exception:
-            pass
-        try:
-            await self.nwr.stop()
         except Exception:
             pass

@@ -27,7 +27,7 @@ from ..aprs.tx import build_status
 from ..noaa import NOAA_SATELLITES, NWR_TRANSMITTERS
 from ..noaa.weather_api import fetch_alerts, fetch_forecast
 from ..util.geo import DEFAULT_LAT, DEFAULT_LON, DEFAULT_RADIUS_KM
-from .manager import Manager, ModuleStatus
+from .manager import Manager, ModuleStatus, DeviceBusy
 from . import zadig
 from . import npcap
 from .. import health as health_mod
@@ -223,6 +223,12 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
 
     @app.post("/api/start")
     async def api_start(req: Request):
+        try:
+            return await _api_start_inner(req)
+        except DeviceBusy as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
+
+    async def _api_start_inner(req: Request):
         body = await req.json()
         module = body.get("module")
         # `device` may be omitted, null, -1 (none), or -2 (online feed). Coerce safely.
@@ -556,12 +562,15 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         body = await req.json()
         freq = float(body.get("frequency", 162.4))
         device = int(body.get("device", 0))
-        await manager.nwr.start(freq, device)
+        try:
+            await manager.start_nwr(freq, device)
+        except DeviceBusy as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
         return {"ok": True}
 
     @app.post("/api/noaa/radio/stop")
     async def api_nwr_stop():
-        await manager.nwr.stop()
+        await manager.stop_nwr()
         return {"ok": True}
 
     @app.post("/api/noaa/radio/scan")

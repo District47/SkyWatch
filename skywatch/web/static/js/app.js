@@ -1818,7 +1818,16 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ frequency: freq, device: dev })
-                }).then(function() {
+                })
+                .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, body: d }; }); })
+                .then(function(res) {
+                    if (!res.ok || res.body.error) {
+                        nwrListen.textContent = 'Listen';
+                        nwrListen.disabled = false;
+                        var statusLine = document.getElementById('nwr-status-line');
+                        if (statusLine) statusLine.innerHTML = '<span style="color:#fca5a5">' + escHtml(res.body.error || 'Failed to start') + '</span>';
+                        return;
+                    }
                     setTimeout(function() {
                         nwrListen.style.display = 'none';
                         nwrStopBtn.style.display = '';
