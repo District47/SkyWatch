@@ -16,7 +16,7 @@ from ..adsb import ADSB, ADSBConfig, OpenSky, OpenSkyConfig, AircraftDB
 from ..ais import AIS, AISConfig, AISStream, AISStreamConfig
 from ..aprs import APRSStore, APRSISClient, APRSISConfig
 from ..noaa import NOAATracker, NWRReceiver, APTCapture, APTConfig, CaptureResult
-from ..remoteid import RemoteID, RemoteIDConfig
+from ..remoteid import RemoteID, RemoteIDConfig, BLEScanner
 
 log = logging.getLogger("skywatch.manager")
 
@@ -44,6 +44,7 @@ class Manager:
         self.aisstream: Optional[AISStream] = None
         self.aprs_is: Optional[APRSISClient] = None
         self.remoteid: Optional[RemoteID] = None
+        self.remoteid_ble: Optional[BLEScanner] = None
         # Remember the WiFi interface passed via CLI so the dashboard's
         # Start/Stop button can restart drone-RID without needing to re-type it.
         self.remoteid_interface: str = ""
@@ -205,12 +206,25 @@ class Manager:
             self.remoteid_monitor = monitor
             self.remoteid_channel = channel
             await self.remoteid.start()
+            # BLE Drone-RID runs on the host's Bluetooth radio — no UI needed.
+            if self.remoteid_ble is None:
+                self.remoteid_ble = BLEScanner(self.tracker)
+            try:
+                await self.remoteid_ble.start()
+            except Exception as e:
+                log.warning("BLE Drone-RID start failed: %s", e)
 
     async def stop_remoteid(self) -> None:
         async with self._lock:
             if self.remoteid:
                 await self.remoteid.stop()
                 self.remoteid = None
+            if self.remoteid_ble:
+                try:
+                    await self.remoteid_ble.stop()
+                except Exception:
+                    pass
+                self.remoteid_ble = None
 
     async def start_noaa_tracker(self, lat: float = 0.0, lon: float = 0.0) -> None:
         self.noaa_tracker.set_observer(lat, lon)

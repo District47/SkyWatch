@@ -321,6 +321,7 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         if manager.remoteid is None:
             return {"running": False}
         r = manager.remoteid
+        ble = manager.remoteid_ble
         return {
             "running": bool(r._task and not r._task.done()),
             "interface": r.cfg.interface,
@@ -329,6 +330,11 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             "frames_rid": r.frames_rid,
             "last_frame_at": r.last_frame_at,
             "last_rid_at": r.last_rid_at,
+            "ble_running": bool(ble and ble._task and not ble._task.done()),
+            "ble_frames_total": ble.frames_total if ble else 0,
+            "ble_frames_rid": ble.frames_rid if ble else 0,
+            "ble_last_frame_at": ble.last_frame_at if ble else 0,
+            "ble_last_rid_at": ble.last_rid_at if ble else 0,
         }
 
     # ---- Alert zones ----

@@ -862,18 +862,37 @@
                     box.innerHTML = '<span style="color:#64748b">Sniffer not running.</span>';
                     return;
                 }
-                var lastF = s.last_frame_at ? Math.round(Date.now()/1000 - s.last_frame_at) + 's ago' : 'never';
-                var lastR = s.last_rid_at ? Math.round(Date.now()/1000 - s.last_rid_at) + 's ago' : 'never';
-                var stale = (s.frames_total === 0 || (s.last_frame_at && Date.now()/1000 - s.last_frame_at > 30));
-                var packetColor = stale ? '#fca5a5' : '#6ee7b7';
-                var ridColor = (s.frames_rid > 0) ? '#6ee7b7' : '#fbbf24';
-                box.innerHTML =
-                    '<div style="color:' + packetColor + '">📡 Frames: ' + s.frames_total +
-                        ' <span style="color:#64748b">(mgmt ' + s.frames_mgmt + ', last ' + lastF + ')</span></div>' +
-                    '<div style="color:' + ridColor + ';margin-top:2px">🛸 Drone RID frames: ' + s.frames_rid +
-                        ' <span style="color:#64748b">(last ' + lastR + ')</span></div>' +
-                    (s.frames_total === 0 ? '<div style="color:#fca5a5;margin-top:4px">No packets yet — adapter may not support monitor mode on this OS.</div>' : '') +
-                    (s.frames_total > 0 && s.frames_mgmt === 0 ? '<div style="color:#fbbf24;margin-top:4px">Packets flowing but none look like beacons. Adapter may not be in true monitor mode.</div>' : '');
+                var ago = function(ts) { return ts ? Math.round(Date.now()/1000 - ts) + 's ago' : 'never'; };
+                var wifiStale = (s.frames_total === 0 || (s.last_frame_at && Date.now()/1000 - s.last_frame_at > 30));
+                var wifiColor = wifiStale ? '#fca5a5' : '#6ee7b7';
+                var wifiRidColor = (s.frames_rid > 0) ? '#6ee7b7' : '#fbbf24';
+
+                var html = '';
+                html += '<div style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">WiFi sniff</div>';
+                html += '<div style="color:' + wifiColor + '">📡 Frames: ' + s.frames_total +
+                    ' <span style="color:#64748b">(mgmt ' + s.frames_mgmt + ', last ' + ago(s.last_frame_at) + ')</span></div>';
+                html += '<div style="color:' + wifiRidColor + '">🛸 Drone RID: ' + s.frames_rid +
+                    ' <span style="color:#64748b">(last ' + ago(s.last_rid_at) + ')</span></div>';
+
+                html += '<div style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-top:6px;margin-bottom:2px">Bluetooth LE</div>';
+                if (!s.ble_running) {
+                    html += '<div style="color:#fca5a5">BLE scanner not running (check that Bluetooth is on).</div>';
+                } else {
+                    var bleStale = (s.ble_frames_total === 0 || (s.ble_last_frame_at && Date.now()/1000 - s.ble_last_frame_at > 30));
+                    var bleColor = bleStale ? '#fca5a5' : '#6ee7b7';
+                    var bleRidColor = (s.ble_frames_rid > 0) ? '#6ee7b7' : '#fbbf24';
+                    html += '<div style="color:' + bleColor + '">📶 Adv frames: ' + s.ble_frames_total +
+                        ' <span style="color:#64748b">(last ' + ago(s.ble_last_frame_at) + ')</span></div>';
+                    html += '<div style="color:' + bleRidColor + '">🛸 Drone RID: ' + s.ble_frames_rid +
+                        ' <span style="color:#64748b">(last ' + ago(s.ble_last_rid_at) + ')</span></div>';
+                }
+
+                if (s.frames_total === 0 && (!s.ble_running || s.ble_frames_total === 0)) {
+                    html += '<div style="color:#fca5a5;margin-top:4px">No packets on either band — check adapter / Bluetooth.</div>';
+                } else if (s.frames_total > 0 && s.frames_mgmt === 0) {
+                    html += '<div style="color:#fbbf24;margin-top:4px">WiFi packets flowing but no beacons — adapter likely not in monitor mode.</div>';
+                }
+                box.innerHTML = html;
             })
             .catch(function() {});
     }
