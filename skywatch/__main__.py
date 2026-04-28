@@ -41,7 +41,9 @@ async def _bootstrap(args: Args, manager: Manager) -> None:
     # Auto-start AIS if a device index was provided.
     if args.ais_device >= 0:
         try:
-            await manager.start_ais(device=args.ais_device, rtl_ais_path=args.rtl_ais)
+            await manager.start_ais(device=args.ais_device,
+                                    rtl_ais_path=args.rtl_ais,
+                                    ais_catcher_path=args.ais_catcher)
         except Exception as e:
             log.warning("auto-start AIS failed: %s", e)
 

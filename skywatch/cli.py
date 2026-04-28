@@ -31,6 +31,7 @@ class Args:
     addr: str
     readsb: str
     rtl_ais: str
+    ais_catcher: str
     aisstream_key: str
     wifi: str
     monitor: bool
@@ -62,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-addr", default=":8080", help="web dashboard listen address (default :8080)")
     p.add_argument("-readsb", default="readsb", help="path to readsb binary (default 'readsb')")
     p.add_argument("-rtl-ais", dest="rtl_ais", default="rtl_ais", help="path to rtl_ais binary")
+    p.add_argument("-ais-catcher", dest="ais_catcher", default="AIS-catcher",
+                   help="path to AIS-catcher binary (Windows-friendly fallback if rtl_ais is missing)")
     p.add_argument("-aisstream-key", dest="aisstream_key", default="", help="aisstream.io API key (enables online AIS)")
     p.add_argument("-wifi", default="", help="WiFi interface for drone Remote ID (e.g. wlan0)")
     p.add_argument("-monitor", default="true", help="auto-enable WiFi monitor mode (true/false)")
@@ -99,6 +102,7 @@ def parse(argv: list[str] | None = None) -> Args:
         addr=ns.addr,
         readsb=ns.readsb,
         rtl_ais=ns.rtl_ais,
+        ais_catcher=ns.ais_catcher,
         aisstream_key=ns.aisstream_key,
         wifi=ns.wifi,
         monitor=_to_bool(ns.monitor),

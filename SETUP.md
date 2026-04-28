@@ -105,11 +105,30 @@ readsb --help
 
 ---
 
-## 4. AIS — `rtl_ais`
+## 4. AIS — `rtl_ais` or AIS-catcher
 
-Required to spawn an RTL-SDR-driven 162 MHz decoder. Not needed for the aisstream.io online feed.
+Required to drive an RTL-SDR at 162 MHz. Not needed for the aisstream.io online feed.
 
-### macOS / Linux — build from source
+SkyWatch auto-detects which decoder is available — preferring `rtl_ais` if found, falling back to **AIS-catcher** otherwise. AIS-catcher is the easy choice on Windows because pre-built binaries are published.
+
+### Windows — AIS-catcher (recommended)
+
+1. Download the latest `AIS-catcher.x64.zip` from https://github.com/jvde-github/AIS-catcher/releases
+2. Extract to `C:\tools\AIS-catcher\` (or anywhere on PATH).
+3. Add to PATH (one-time):
+
+```powershell
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";C:\tools\AIS-catcher", "User")
+```
+
+Verify in a fresh PowerShell:
+
+```powershell
+where.exe AIS-catcher
+AIS-catcher -h
+```
+
+### macOS / Linux — `rtl_ais`
 
 ```bash
 git clone https://github.com/dgiardini/rtl-ais /tmp/rtl-ais
@@ -117,14 +136,13 @@ cd /tmp/rtl-ais && make
 sudo cp rtl_ais /usr/local/bin/
 ```
 
-### Windows
+Or use AIS-catcher on Linux/macOS too — it builds easily with the rtl-sdr dev headers.
 
-Build via WSL2, or grab a community binary and put it on PATH.
-
-Verify:
+Verify (whichever you installed):
 
 ```bash
-rtl_ais --help
+rtl_ais --help    # OR
+AIS-catcher -h
 ```
 
 ---

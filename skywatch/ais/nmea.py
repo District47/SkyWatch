@@ -29,6 +29,10 @@ _STATS_INTERVAL = 30.0
 @dataclass
 class AISConfig:
     rtl_ais_path: str = "rtl_ais"
+    # AIS-catcher is the Windows-friendly drop-in: pre-built x64 binaries on
+    # GitHub releases, same NMEA-over-TCP output. Used when rtl_ais isn't
+    # found on PATH.
+    ais_catcher_path: str = "AIS-catcher"
     device_index: int = 1
     gain: float = 0.0
     external_host: str = ""  # "host:port" — connect instead of spawning
@@ -83,11 +87,31 @@ class AIS:
         return "127.0.0.1", _RTLAIS_TCP_PORT
 
     async def _spawn_rtl_ais(self) -> None:
-        binary = shutil.which(self.cfg.rtl_ais_path) or self.cfg.rtl_ais_path
-        args = [binary, "-n", "-T", "-P", str(_RTLAIS_TCP_PORT), "-d", str(self.cfg.device_index)]
-        if self.cfg.gain and self.cfg.gain > 0:
-            args.extend(["-g", f"{int(self.cfg.gain)}"])
-        log.info("starting rtl_ais: %s", " ".join(args))
+        rtl_ais = shutil.which(self.cfg.rtl_ais_path)
+        ais_catcher = (shutil.which(self.cfg.ais_catcher_path)
+                       or shutil.which("AIS-catcher")
+                       or shutil.which("AIS-catcher.exe"))
+        if rtl_ais:
+            args = [rtl_ais, "-n", "-T", "-P", str(_RTLAIS_TCP_PORT),
+                    "-d", str(self.cfg.device_index)]
+            if self.cfg.gain and self.cfg.gain > 0:
+                args.extend(["-g", f"{int(self.cfg.gain)}"])
+            label = "rtl_ais"
+        elif ais_catcher:
+            args = [ais_catcher, f"-d:{self.cfg.device_index}",
+                    "-S", str(_RTLAIS_TCP_PORT)]
+            if self.cfg.gain and self.cfg.gain > 0:
+                args.extend(["-gr", "TUNER", str(int(self.cfg.gain))])
+            else:
+                args.extend(["-gr", "TUNER", "auto"])
+            label = "AIS-catcher"
+        else:
+            raise RuntimeError(
+                "neither 'rtl_ais' nor 'AIS-catcher' was found on PATH. "
+                "Install AIS-catcher from https://github.com/jvde-github/AIS-catcher/releases "
+                "(Windows pre-built binary) or build rtl_ais from source."
+            )
+        log.info("starting %s: %s", label, " ".join(args))
         self._proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.DEVNULL,
@@ -95,7 +119,7 @@ class AIS:
         )
         await asyncio.sleep(2.0)
         if self._proc.returncode is not None:
-            raise RuntimeError(f"rtl_ais exited rc={self._proc.returncode}")
+            raise RuntimeError(f"{label} exited rc={self._proc.returncode}")
 
     async def _consume(self, host: str, port: int) -> None:
         for attempt in range(1, _CONNECT_MAX + 1):

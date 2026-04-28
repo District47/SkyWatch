@@ -170,13 +170,13 @@ class Manager:
                 self.opensky = None
 
     async def start_ais(self, device: int, gain: float = 0.0, rtl_ais_path: str = "rtl_ais",
-                       external_host: str = "") -> None:
+                       ais_catcher_path: str = "AIS-catcher", external_host: str = "") -> None:
         async with self._lock:
             if self.ais:
                 await self.ais.stop()
             self.ais = AIS(AISConfig(
-                rtl_ais_path=rtl_ais_path, device_index=device,
-                gain=gain, external_host=external_host,
+                rtl_ais_path=rtl_ais_path, ais_catcher_path=ais_catcher_path,
+                device_index=device, gain=gain, external_host=external_host,
             ), self.tracker)
             await self.ais.start()
             if device >= 0 and not external_host:
