@@ -71,6 +71,7 @@ class NWRReceiver:
         self._status = NWRStatus()
         self._signal_lock = asyncio.Lock()
         self._task: Optional[asyncio.Task] = None
+        self._stderr_task: Optional[asyncio.Task] = None
         self._subscribers: list[asyncio.Queue[bytes]] = []
 
     @property
@@ -93,8 +94,32 @@ class NWRReceiver:
         self._proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
+
+        # Stream stderr to the log in the background so the user sees
+        # rtl_fm's complaint (e.g. "usb_open error", "No supported devices
+        # found") instead of silent failure. Also lets us detect early death.
+        async def _drain_stderr(proc):
+            assert proc.stderr is not None
+            while True:
+                line = await proc.stderr.readline()
+                if not line:
+                    return
+                msg = line.decode(errors="replace").rstrip()
+                if msg:
+                    log.info("rtl_fm: %s", msg)
+        self._stderr_task = asyncio.create_task(_drain_stderr(self._proc), name="nwr-stderr")
+
+        # Catch the common case: rtl_fm exits immediately because the
+        # device is busy (already in use by ADS-B/AIS) or the WinUSB
+        # driver isn't bound. Wait briefly, then check.
+        await asyncio.sleep(0.5)
+        if self._proc.returncode is not None:
+            log.error("rtl_fm exited immediately with code %s — device may be in use by another module, or WinUSB driver not bound (run Zadig).", self._proc.returncode)
+            self._status = NWRStatus()
+            return
+
         name = next((c["name"] for c in NWR_FREQUENCIES if abs(c["freq_mhz"] - frequency_mhz) < 0.001), "")
         self._status = NWRStatus(running=True, frequency_mhz=frequency_mhz, name=name, device=device)
         self._task = asyncio.create_task(self._pump(), name="nwr-pump")
@@ -115,6 +140,12 @@ class NWRReceiver:
                 await asyncio.wait_for(self._task, timeout=3.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
+        if self._stderr_task:
+            try:
+                await asyncio.wait_for(self._stderr_task, timeout=1.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+            self._stderr_task = None
         # Drain subscribers
         for q in list(self._subscribers):
             try:
