@@ -192,7 +192,15 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
                 if box and manager.opensky:
                     manager.opensky.set_box(*box)
             else:
-                await manager.start_adsb(device=device, gain=gain, external_host=host)
+                # Use the visible-area centre as the CPR reference so a single
+                # position message decodes immediately (no waiting for an
+                # odd/even pair).
+                ref_lat = (box[0] + box[1]) / 2 if box else 0.0
+                ref_lon = (box[2] + box[3]) / 2 if box else 0.0
+                await manager.start_adsb(device=device, gain=gain,
+                                         external_host=host,
+                                         reference_lat=ref_lat,
+                                         reference_lon=ref_lon)
         elif module == "ais":
             if device == -2:
                 key = api_keys.get("aisstream", "")
@@ -274,6 +282,10 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             min_lon = float(body["lomin"]); max_lon = float(body["lomax"])
             if manager.opensky:
                 manager.opensky.set_box(min_lat, max_lat, min_lon, max_lon)
+            # Keep the native-decoder CPR reference at the box centre.
+            if manager.adsb_native:
+                manager.adsb_native.set_reference((min_lat + max_lat) / 2,
+                                                  (min_lon + max_lon) / 2)
             return {"ok": True, "min_lat": min_lat, "max_lat": max_lat,
                     "min_lon": min_lon, "max_lon": max_lon}
         lat = float(body.get("lat", DEFAULT_LAT))
@@ -281,6 +293,8 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         radius = float(body.get("radius_km", DEFAULT_RADIUS_KM))
         if manager.opensky:
             manager.opensky.set_bounds(lat, lon, radius)
+        if manager.adsb_native:
+            manager.adsb_native.set_reference(lat, lon)
         return {"ok": True, "lat": lat, "lon": lon, "radius_km": radius}
 
     # ---- AIS ----

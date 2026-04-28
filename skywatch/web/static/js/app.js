@@ -1317,7 +1317,11 @@
                 if (module === 'drone') {
                     startBody.interface = droneIface;
                 }
-                if (deviceIdx === -2) {
+                // Always include the visible map bounds — online feeds use it
+                // to scope queries, and the native ADS-B decoder uses the
+                // box centre as a CPR reference so positions decode from a
+                // single message instead of waiting for an odd/even pair.
+                if (module === 'adsb' || module === 'ais' || deviceIdx === -2) {
                     var b = map.getBounds();
                     startBody.lamin = b.getSouth();
                     startBody.lomin = b.getWest();

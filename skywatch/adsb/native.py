@@ -78,9 +78,9 @@ def _modes_crc(msg_bytes: bytes) -> int:
 @dataclass
 class NativeADSBConfig:
     device_index: int = 0
-    gain: float = 0.0          # 0 = auto
+    gain: float = 0.0          # 0 = auto (49.6 dB applied internally)
     db: Optional[AircraftDB] = None
-    reference_lat: float = 0.0  # for single-message position fixes
+    reference_lat: float = 0.0  # used for single-message airborne CPR decode
     reference_lon: float = 0.0
 
 
@@ -96,8 +96,12 @@ class NativeADSB:
         self.messages_decoded = 0
         self.messages_rejected = 0
         self.last_msg_at = 0.0
-        # PipeDecoder is per-instance state; created on start.
-        self._pipe = None
+
+    def set_reference(self, lat: float, lon: float) -> None:
+        """Update the lat/lon used for CPR position decoding. Safe to call
+        from any thread — the worker reads it lazily."""
+        self.cfg.reference_lat = float(lat)
+        self.cfg.reference_lon = float(lon)
 
     @property
     def running(self) -> bool:
@@ -108,14 +112,11 @@ class NativeADSB:
             return
         self._loop = asyncio.get_event_loop()
         self._stop.clear()
-        # PipeDecoder import is lazy so the rest of skywatch imports even if
-        # pyModeS isn't installed.
+        # Verify pyModeS is available before launching the thread.
         try:
-            from pyModeS import PipeDecoder  # type: ignore
-            ref = (self.cfg.reference_lat, self.cfg.reference_lon) if (self.cfg.reference_lat or self.cfg.reference_lon) else None
-            self._pipe = PipeDecoder(reference=ref) if ref else PipeDecoder()
+            import pyModeS  # type: ignore  # noqa: F401
         except Exception as e:
-            log.error("pyModeS PipeDecoder unavailable: %s", e)
+            log.error("pyModeS unavailable: %s", e)
             return
         self._thread = threading.Thread(target=self._run, name="adsb-native", daemon=True)
         self._thread.start()
@@ -226,10 +227,12 @@ class NativeADSB:
     # ── Message → Target ─────────────────────────────────────────────
 
     def _handle(self, hex_msg: str) -> None:
-        if self._pipe is None:
-            return
+        import pyModeS  # local import keeps module-level cheap
+        ref = None
+        if self.cfg.reference_lat or self.cfg.reference_lon:
+            ref = (self.cfg.reference_lat, self.cfg.reference_lon)
         try:
-            result = self._pipe.decode(hex_msg, timestamp=time.time())
+            result = pyModeS.decode(hex_msg, reference=ref)
         except Exception:
             return
         if not result:

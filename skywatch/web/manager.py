@@ -115,7 +115,8 @@ class Manager:
         return out
 
     async def start_adsb(self, device: int, gain: float = 0.0, readsb_path: str = "readsb",
-                        external_host: str = "") -> None:
+                        external_host: str = "",
+                        reference_lat: float = 0.0, reference_lon: float = 0.0) -> None:
         """Start ADS-B. Picks the native pure-Python decoder when a real device
         index is given (no readsb binary required). The legacy readsb-spawn
         path is still used when external_host is provided."""
@@ -137,6 +138,7 @@ class Manager:
             else:
                 self.adsb_native = NativeADSB(NativeADSBConfig(
                     device_index=device, gain=gain, db=self.aircraft_db,
+                    reference_lat=reference_lat, reference_lon=reference_lon,
                 ), self.tracker)
                 await self.adsb_native.start()
                 if device >= 0:
