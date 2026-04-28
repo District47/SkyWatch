@@ -29,6 +29,7 @@ from ..noaa.weather_api import fetch_alerts, fetch_forecast
 from ..util.geo import DEFAULT_LAT, DEFAULT_LON, DEFAULT_RADIUS_KM
 from .manager import Manager, ModuleStatus
 from . import zadig
+from .. import health as health_mod
 
 log = logging.getLogger("skywatch.web")
 
@@ -164,6 +165,17 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
     @app.get("/api/targets")
     async def api_targets():
         return await snapshot()
+
+    @app.get("/api/health")
+    async def api_health():
+        # Some checks (DLL loads, shutil.which on a slow filesystem) are
+        # synchronous; run off the event loop so the WS broadcaster doesn't
+        # stall behind a dragging probe.
+        checks = await asyncio.to_thread(health_mod.run_all)
+        return {
+            "summary": health_mod.summarize(checks),
+            "checks": [c.to_json() for c in checks],
+        }
 
     @app.get("/api/zadig/status")
     async def api_zadig_status():

@@ -1155,6 +1155,64 @@
         if (e.target === this) closeSetup();
     });
 
+    function refreshHealth() {
+        var overallBadge = document.getElementById('health-overall-badge');
+        var summaryEl = document.getElementById('health-summary');
+        var listEl = document.getElementById('health-list');
+        if (!listEl) return;
+        listEl.innerHTML = '<div style="color:#64748b;padding:6px 0">Running checks…</div>';
+        overallBadge.textContent = 'checking…';
+        overallBadge.className = 'health-badge health-skip';
+        summaryEl.textContent = '';
+
+        fetch('/api/health')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var s = data.summary || {};
+                var c = s.counts || {};
+                overallBadge.textContent = (s.overall || 'unknown').toUpperCase();
+                overallBadge.className = 'health-badge health-' + (s.overall || 'skip');
+                summaryEl.textContent = (c.ok || 0) + ' OK · ' + (c.warn || 0) + ' warn · ' +
+                    (c.fail || 0) + ' fail' + ((c.skip || 0) ? ' · ' + c.skip + ' n/a' : '');
+
+                // Group by category, in a stable order.
+                var order = ['core','rtl-sdr','ads-b','ais','noaa','drone-rid','aprs'];
+                var labels = {
+                    'core':'Core','rtl-sdr':'RTL-SDR','ads-b':'ADS-B (Aircraft)',
+                    'ais':'AIS (Vessels)','noaa':'NOAA','drone-rid':'Drone Remote ID','aprs':'APRS'
+                };
+                var byCat = {};
+                (data.checks || []).forEach(function(ck) {
+                    (byCat[ck.category] = byCat[ck.category] || []).push(ck);
+                });
+                var html = '';
+                order.forEach(function(cat) {
+                    var rows = byCat[cat]; if (!rows) return;
+                    html += '<div class="health-cat-header">' + (labels[cat] || cat) + '</div>';
+                    rows.forEach(function(ck) {
+                        html += '<div class="health-row">' +
+                            '<div class="health-dot ' + ck.status + '"></div>' +
+                            '<div style="flex:1;min-width:0">' +
+                                '<div class="health-name">' + escHtml(ck.name) + '</div>' +
+                                (ck.detail ? '<div class="health-detail">' + escHtml(ck.detail) + '</div>' : '') +
+                                (ck.fix_hint ? '<div class="health-hint">→ ' + escHtml(ck.fix_hint) + '</div>' : '') +
+                            '</div>' +
+                            '<span class="health-badge health-' + ck.status + '">' + ck.status.toUpperCase() + '</span>' +
+                        '</div>';
+                    });
+                });
+                listEl.innerHTML = html || '<div style="color:#64748b;padding:6px 0">No checks returned.</div>';
+            })
+            .catch(function(err) {
+                listEl.innerHTML = '<div style="color:#ef4444;padding:6px 0">Health check failed: ' + escHtml(err.message) + '</div>';
+                overallBadge.textContent = 'ERROR';
+                overallBadge.className = 'health-badge health-fail';
+            });
+    }
+
+    var healthRefreshBtn = document.getElementById('health-refresh-btn');
+    if (healthRefreshBtn) healthRefreshBtn.addEventListener('click', refreshHealth);
+
     function refreshZadigPanel() {
         var panel = document.getElementById('zadig-panel');
         var msg = document.getElementById('zadig-msg');
@@ -1206,6 +1264,7 @@
         var controls = document.getElementById('module-controls');
 
         refreshZadigPanel();
+        refreshHealth();
 
         loading.style.display = 'block';
         errEl.classList.add('hidden');

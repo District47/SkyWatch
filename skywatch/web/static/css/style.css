@@ -954,3 +954,21 @@ body {
 .target-popup-body .detail-value { color: #e0e6ed; font-size: 12px; text-align: right; word-break: break-word; }
 .target-popup-body .ext-link { color: #38bdf8; text-decoration: none; }
 .target-popup-body .ext-link:hover { text-decoration: underline; }
+
+/* Installation health panel */
+.health-badge { display:inline-block; padding:1px 7px; border-radius:9px; font-size:10px; font-weight:600; margin-left:4px; vertical-align:middle; }
+.health-ok    { background:#064e3b; color:#6ee7b7; }
+.health-warn  { background:#422006; color:#fcd34d; }
+.health-fail  { background:#450a0a; color:#fca5a5; }
+.health-skip  { background:#1e293b; color:#94a3b8; }
+.health-cat-header { color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; margin-top:8px; margin-bottom:2px; }
+.health-row { display:flex; align-items:flex-start; gap:8px; padding:3px 0; border-bottom:1px solid #1e293b; }
+.health-row:last-child { border-bottom:none; }
+.health-dot { width:8px; height:8px; border-radius:50%; margin-top:6px; flex-shrink:0; }
+.health-dot.ok   { background:#10b981; }
+.health-dot.warn { background:#f59e0b; }
+.health-dot.fail { background:#ef4444; }
+.health-dot.skip { background:#475569; }
+.health-name { color:#e2e8f0; font-weight:500; }
+.health-detail { color:#94a3b8; font-size:11px; margin-top:1px; word-break:break-word; }
+.health-hint { color:#fcd34d; font-size:11px; margin-top:1px; font-style:italic; }
