@@ -6,14 +6,7 @@ This is **Tier 1** — source-level distribution with bundled embeddable Python.
 
 ## One-time prep on this machine
 
-1. **Populate `tools/win64/`** with all the native binaries (this is the same set the dev build uses).
-   - From rtl-sdr-blog Windows release: `rtl_fm.exe`, `rtl_test.exe`, `librtlsdr.dll` (or `rtlsdr.dll`), `libusb-1.0.dll`, `pthreadVC2.dll`.
-   - From AIS-catcher releases: `AIS-catcher.exe` + every DLL in its zip.
-   - From cuppa-joe multimon-ng releases: `multimon-ng.exe` **AND** `cygwin1.dll`.
-   - From Microsoft: `vc_redist.x64.exe`.
-   - From Akeo: `zadig.exe`.
-
-   Verify by listing the folder — it should match what's described in [tools/README.md](tools/README.md) plus the multimon-ng additions.
+1. **`tools/win64/` is already committed** to the repo (~47 MB). A fresh `git clone` gets you the full set of RF binaries — no manual copy needed. If you ever need to refresh a binary, see [tools/README.md § Updating a binary](tools/README.md#updating-a-binary).
 
 2. **Bundle the embeddable Python** by running:
    ```bat

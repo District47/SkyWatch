@@ -12,13 +12,18 @@ data/api_keys.json
 data/alert_zones.json
 noaa_images/
 
-# Bundled native binaries — copy your own in to ship a portable build.
-# Delete the line below if you DO want to commit them.
-tools/win64/
-tools/win32/
-tools/linux64/
-tools/darwin-arm64/
-tools/darwin-x64/
+# tools/win64/ is committed — testers cloning fresh need a working install
+# out of the box (rtl_fm, AIS-catcher, multimon-ng, drivers). Other-platform
+# tool folders are not yet populated; uncomment if/when you add them.
+#tools/win32/
+#tools/linux64/
+#tools/darwin-arm64/
+#tools/darwin-x64/
+
+# AIS-catcher runtime log artifacts (written into tools/win64/ on launch).
+tools/win64/ais_err.log
+tools/win64/ais_out.log
+
 # Embeddable Python populated by scripts/setup-bundle.bat (large; per-tester
 # bundle artifact, not source).
 tools/python-win64/

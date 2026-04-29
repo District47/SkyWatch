@@ -12,8 +12,11 @@ A zip file (something like `SkyWatch-beta-YYYYMMDD.zip`) containing:
 
 - A `start.bat` launcher (Windows) — double-click to run.
 - A bundled Python interpreter — no separate install needed.
-- A bundled `tools/win64/` folder with the RTL-SDR drivers, `rtl_fm`, `AIS-catcher`, `multimon-ng`, and `Zadig`.
+- A bundled `tools/win64/` folder with **everything pre-installed**: the RTL-SDR drivers (`rtlsdr.dll`, `libusb-1.0.dll`), the command-line tools (`rtl_fm`, `rtl_test`), `AIS-catcher` for ship tracking, `multimon-ng` + `cygwin1.dll` for off-air APRS, the VC++ Redistributable installer, and `Zadig` for the one-time driver swap.
 - The dashboard, parsers, and decoders.
+
+> [!NOTE]
+> **You shouldn't have to download anything else.** If `start.bat` complains a file is missing, that's a packaging bug — please send the error along with the log file from `logs\` and we'll fix it.
 
 ---
 
