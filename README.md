@@ -248,16 +248,10 @@ skywatch/
 
 ## 🔬 Origins & lineage
 
-This is a Python rewrite of the previous Go implementation (preserved on the [`go-rewrite`](https://github.com/District47/SkyWatch/tree/go-rewrite) branch) and the original PyQt build (preserved on [`pyqt-archive`](https://github.com/District47/SkyWatch/tree/pyqt-archive)).
+SkyWatch started as a PyQt desktop app, was rewritten in Go for headless server deployment, and is now back in Python on top of FastAPI for the dashboard you see today. Every CLI flag, REST route, WebSocket message shape, dialed-in RF constant, and timeout from the Go version is preserved here — so existing setups keep working.
 
 > [!IMPORTANT]
-> Every CLI flag, REST route, WebSocket message shape, dialed-in RF constant, and timeout matches the Go version — so existing setups keep working.
-
-| Branch | Contents |
-|---|---|
-| `main` | This Python rewrite (current) |
-| `go-rewrite` | Previous Go implementation |
-| `pyqt-archive` | Original PyQt desktop build |
+> **`main` is the only supported branch.** Earlier Go and PyQt implementations have been retired; please test only against `main`.
 
 ---
 
