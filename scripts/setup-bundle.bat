@@ -38,7 +38,7 @@ set ZIPPATH=%TEMP%\%ZIPNAME%
 
 if exist "%DEST%\python.exe" (
     echo.
-    echo [!!] %DEST%\ already contains a python.exe.
+    echo [WARN] %DEST%\ already contains a python.exe.
     echo      Delete it first if you want a clean rebuild:
     echo        rmdir /s /q "%DEST%"
     goto :end
@@ -75,7 +75,7 @@ powershell -NoProfile -Command ^
     "    $p = $_.FullName;" ^
     "    $c = (Get-Content $p) -replace '^#import site', 'import site';" ^
     "    if (-not ($c -contains 'import site')) { $c += 'import site' };" ^
-    "    if (-not ($c -contains '..\\..')) { $c = ,'..\\..' + $c };" ^
+    "    if (-not ($c -contains '..\..')) { $c = ,'..\..' + $c };" ^
     "    Set-Content -Path $p -Value $c -Encoding ASCII;" ^
     "}"
 

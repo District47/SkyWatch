@@ -105,12 +105,15 @@ if "%NEED_INSTALL%"=="1" (
 :launch
 
 rem --- 4. Sanity check: bundled tools folder ---
+rem  Note: do NOT use "[!!]" here — delayed expansion (enabled at the top
+rem  of this script) treats `!!` as an empty variable reference and
+rem  silently strips it from the printed line.
 if exist "tools\win64\rtlsdr.dll" (
     echo [OK] Bundled tools detected: tools\win64\
 ) else (
-    echo [!!] tools\win64\ is missing rtlsdr.dll
-    echo     RTL-SDR features will not work until you drop the rtl-sdr-blog
-    echo     Windows release into tools\win64\. See tools\README.md.
+    echo [WARN] tools\win64\ is missing rtlsdr.dll
+    echo        RTL-SDR features will not work until you drop the rtl-sdr-blog
+    echo        Windows release into tools\win64\. See tools\README.md.
 )
 
 rem --- 5. Launch ---
@@ -126,7 +129,7 @@ set RC=%ERRORLEVEL%
 popd
 echo.
 if %RC% NEQ 0 (
-    echo [!] SkyWatch exited with code %RC%.
+    echo [ERR] SkyWatch exited with code %RC%.
     pause
 )
 exit /b %RC%
