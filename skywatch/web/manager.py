@@ -14,7 +14,7 @@ from typing import Optional
 from ..tracker import Tracker
 from ..adsb import ADSB, ADSBConfig, OpenSky, OpenSkyConfig, NativeADSB, NativeADSBConfig, AircraftDB
 from ..ais import AIS, AISConfig, AISStream, AISStreamConfig
-from ..aprs import APRSStore, APRSISClient, APRSISConfig
+from ..aprs import APRSStore, APRSISClient, APRSISConfig, APRSRF, APRSRFConfig
 from ..noaa import NOAATracker, NWRReceiver, APTCapture, APTConfig, CaptureResult
 from ..remoteid import RemoteID, RemoteIDConfig, BLEScanner
 
@@ -52,6 +52,7 @@ class Manager:
         self.ais: Optional[AIS] = None
         self.aisstream: Optional[AISStream] = None
         self.aprs_is: Optional[APRSISClient] = None
+        self.aprs_rf: Optional[APRSRF] = None
         self.remoteid: Optional[RemoteID] = None
         self.remoteid_ble: Optional[BLEScanner] = None
         # Remember the WiFi interface passed via CLI so the dashboard's
@@ -114,6 +115,10 @@ class Manager:
             ModuleStatus(name="aprs-is",
                          enabled=self.aprs_is is not None,
                          running=bool(self.aprs_is and self.aprs_is._task and not self.aprs_is._task.done())),
+            ModuleStatus(name="aprs-sdr",
+                         enabled=self.aprs_rf is not None,
+                         running=bool(self.aprs_rf and self.aprs_rf._task and not self.aprs_rf._task.done()),
+                         device=(self.aprs_rf.cfg.device_index if self.aprs_rf else -1)),
             ModuleStatus(name="remoteid",
                          enabled=self.remoteid is not None,
                          running=bool(self.remoteid and self.remoteid._task and not self.remoteid._task.done())),
@@ -241,6 +246,27 @@ class Manager:
             self.aprs_is = APRSISClient(cfg, self.aprs_store)
             await self.aprs_is.start()
 
+    async def start_aprs_rf(self, device: int, gain: float = 0.0,
+                            freq: str = "144.390M") -> None:
+        async with self._lock:
+            self._check_device_free(device, "aprs-sdr")
+            if self.aprs_rf:
+                await self.aprs_rf.stop()
+                self.aprs_rf = None
+            cfg = APRSRFConfig(device_index=device, gain=gain, freq=freq)
+            self.aprs_rf = APRSRF(cfg, self.aprs_store)
+            await self.aprs_rf.start()
+            if device >= 0:
+                self._device_assignments[device] = "aprs-sdr"
+
+    async def stop_aprs_rf(self) -> None:
+        async with self._lock:
+            if self.aprs_rf:
+                dev = self.aprs_rf.cfg.device_index
+                await self.aprs_rf.stop()
+                self.aprs_rf = None
+                self._device_assignments.pop(dev, None)
+
     async def stop_aprs_is(self) -> None:
         async with self._lock:
             if self.aprs_is:
@@ -308,7 +334,7 @@ class Manager:
     async def shutdown(self) -> None:
         for stop in (
             self.stop_adsb, self.stop_opensky, self.stop_ais, self.stop_aisstream,
-            self.stop_aprs_is, self.stop_remoteid, self.stop_nwr,
+            self.stop_aprs_is, self.stop_aprs_rf, self.stop_remoteid, self.stop_nwr,
         ):
             try:
                 await stop()

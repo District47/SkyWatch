@@ -305,6 +305,17 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             # Frontend uses this for the NOAA auto-capture daemon. The tracker
             # is already running; just acknowledge so the UI updates.
             return {"ok": True, "note": "NOAA tracker is always running; use /api/noaa/capture for one-shot captures"}
+        elif module == "aprs-is":
+            await manager.start_aprs_is(aprs_runtime_cfg)
+        elif module == "aprs-sdr":
+            if device < 0:
+                return JSONResponse({"error": "select an RTL-SDR device for APRS RF"}, status_code=400)
+            await manager.start_aprs_rf(device=device, gain=gain)
+        elif module == "aprs-uvpro":
+            return JSONResponse(
+                {"error": "aprs-uvpro decoder not implemented yet"},
+                status_code=501,
+            )
         else:
             return JSONResponse({"error": f"unknown module {module!r}"}, status_code=400)
         return {"ok": True}
@@ -326,6 +337,12 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
         elif module in ("remoteid", "drone"):
             await manager.stop_remoteid()
         elif module == "noaa":
+            return {"ok": True}
+        elif module == "aprs-is":
+            await manager.stop_aprs_is()
+        elif module == "aprs-sdr":
+            await manager.stop_aprs_rf()
+        elif module == "aprs-uvpro":
             return {"ok": True}
         else:
             return JSONResponse({"error": f"unknown module {module!r}"}, status_code=400)

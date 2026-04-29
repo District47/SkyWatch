@@ -266,6 +266,88 @@ You can sanity-check the parser without flying anything by installing the **Open
 
 ---
 
+## 6.5. APRS RF — `rtl_fm` + `multimon-ng`
+
+The dashboard's **APRS** tab has three sources: **APRS-IS** (internet, no hardware), **APRS RF** (off-air via RTL-SDR), and **UV-Pro** (Bluetooth TNC, not yet implemented). This section is only for the RF path. APRS-IS works with zero setup beyond §1.
+
+The decoder pipeline is `rtl_fm` (FM demod from the SDR) piped into `multimon-ng -a AFSK1200 -A` (Bell 202 1200-baud AFSK + HDLC + AX.25 → TNC2 lines). SkyWatch parses the TNC2 lines and renders stations on the map with a green **RF** badge.
+
+### 6.5a. `rtl_fm`
+
+Same binary as in §5 (NOAA Weather Radio). If you've already done §5, skip to §6.5b.
+
+- **Windows:** `rtl_fm.exe` is part of the rtl-sdr-blog Windows release — drop it into `tools/win64/`.
+- **macOS:** `brew install librtlsdr` (ships `rtl_fm`).
+- **Linux:** `sudo apt install rtl-sdr` (ships `rtl_fm`).
+
+### 6.5b. `multimon-ng`
+
+The **upstream** project at https://github.com/EliasOenal/multimon-ng/releases ships **source only** — no Windows .exe — so unless you have a C toolchain you need a third-party pre-built.
+
+#### Windows
+
+1. Go to https://github.com/cuppa-joe/multimon-ng/releases (third-party fork that ships Windows binaries).
+2. Download the latest `multimon-ng-WIN32.zip` (or equivalent — file names vary slightly between releases).
+3. Extract the zip. You should see two files: `multimon-ng.exe` **and** `cygwin1.dll`.
+4. **Copy BOTH** into `tools/win64/`. The exe is a Cygwin build and won't start without `cygwin1.dll` next to it — symptom is an `error while loading shared libraries` on first run.
+
+Verify:
+
+```powershell
+.\tools\win64\multimon-ng.exe --help
+```
+
+You should see a banner listing demodulators (`POCSAG512 POCSAG1200 ... AFSK1200 ...`). If it silently exits with no output, `cygwin1.dll` is missing.
+
+#### macOS
+
+```bash
+brew install multimon-ng
+```
+
+#### Linux (Debian / Ubuntu)
+
+```bash
+sudo apt install multimon-ng
+```
+
+### 6.5c. Start it
+
+1. Open the dashboard, click **Settings** (top-right gear).
+2. Scroll to **APRS** → **Sources** → **APRS RF**.
+3. Pick your RTL-SDR device from the dropdown (the same one ADS-B / AIS would use — but **only one module can claim a given dongle at a time**, so stop ADS-B/AIS first if they're using the device you want).
+4. Click **Start**.
+
+Server log should print:
+
+```
+INFO skywatch.aprs.rf: starting APRS RF: ...rtl_fm.EXE -f 144.390M ... | ...multimon-ng.EXE -t raw -a AFSK1200 -A -
+INFO skywatch.aprs.rf: APRS RF tuned to 144.390M on device #0
+```
+
+Switch the dashboard's filter to **APRS** to see decoded stations as they come in.
+
+### 6.5d. Reality check on packet rate
+
+APRS is bursty and **reception depends heavily on antenna and proximity to active stations**. Even in a busy metro you may only see a handful of packets per minute — at a quiet rural site you may go an hour with nothing. Zero packets does **not** automatically mean a code/config bug; before debugging, check:
+
+- The RTL-SDR antenna is suitable for 144 MHz (the stock dipole works; a tiny ADS-B antenna will not).
+- You're tuned to the right frequency for your region: **US/Canada/Mexico = 144.390**, **Europe = 144.800**, **Australia = 145.175**, **NZ = 144.575**, **Japan = 144.640**. The default is 144.390. (To change it: stop APRS RF, edit `freq` in [skywatch/aprs/rf.py](skywatch/aprs/rf.py) — runtime override is on the to-do list.)
+- The dongle isn't already claimed by another module. The dashboard refuses cross-claims with a "RTL-SDR #N is already in use" error.
+
+### 6.5e. Frequency reference
+
+| Region | Frequency |
+|---|---|
+| US / Canada / Mexico | 144.390 MHz |
+| Europe (most countries) | 144.800 MHz |
+| Australia | 145.175 MHz |
+| New Zealand | 144.575 MHz |
+| Japan | 144.640 / 144.660 MHz |
+| Brazil / Argentina | 145.570 MHz |
+
+---
+
 ## 7. Optional: API keys
 
 ### aisstream.io (online vessel feed)
@@ -315,4 +397,8 @@ All flags are listed in `python -m skywatch -h`. The dashboard can drive everyth
 | `Sniffer not running` even after clicking Start | You didn't pick an adapter from the dropdown. Pick one and click Start again. |
 | `aisstream API key not configured` | Save the key in **Settings → API Keys** first (§7). |
 | Buttons say "Start" while data is flowing | Hard-refresh browser (`Ctrl+Shift+R`) — cached JS. |
+| APRS RF: `multimon-ng not found on PATH or in tools/win64/` | Drop `multimon-ng.exe` (and `cygwin1.dll` if it's a Cygwin build) into `tools/win64/`. See §6.5b. |
+| APRS RF: log says `APRS RF tuned to 144.390M` but zero packets after 10 min | Almost always antenna or location, not code. Check that you're using a 2 m antenna (not an ADS-B stub) and that you're tuned to your region's frequency (see §6.5e). |
+| APRS RF: `RTL-SDR #N is already in use by adsb` (or ais/nwr) | Each dongle can only feed one module at a time. Stop the other module first, or use a second RTL-SDR. |
+| APRS RF: `error while loading shared libraries` from multimon-ng | Cygwin build is missing `cygwin1.dll`. Copy it from the same zip you got `multimon-ng.exe` from into `tools/win64/`. |
 | Page renders blank / 404s for `/css/style.css` | Hard-refresh, then make sure you're hitting the URL the server prints (`http://127.0.0.1:8080`). |

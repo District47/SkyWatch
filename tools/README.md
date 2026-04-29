@@ -34,6 +34,14 @@ From AIS-catcher (https://github.com/jvde-github/AIS-catcher/releases — `AIS-c
 
 For ADS-B, you don't need anything here — SkyWatch's pure-Python decoder uses pyrtlsdr directly. If you'd rather use `readsb`, drop `readsb.exe` in this folder too.
 
+For **APRS RF** decoding (off-air, not the APRS-IS internet feed) you also need `multimon-ng`. Upstream releases are source-only, so on Windows grab a third-party Windows build:
+
+- From the cuppa-joe fork (https://github.com/cuppa-joe/multimon-ng/releases — `multimon-ng-WIN32.zip`):
+  - `multimon-ng.exe`
+  - `cygwin1.dll` (Cygwin runtime — the .exe is a Cygwin build and **will not start without this DLL next to it**)
+
+`rtl_fm.exe` (already listed above for NWR Weather Radio) is the second half of the APRS RF pipeline. Both are looked up by `skywatch/aprs/rf.py` first on PATH and then in this folder.
+
 ### `tools/linux64/`, `tools/darwin-*/`
 
 System package managers (`apt`, `brew`) generally install these to `/usr/bin` already, so you usually don't need to bundle. If you want a fully portable Linux build, copy the same set of binaries (`AIS-catcher`, `rtl_fm`, `librtlsdr.so`).
