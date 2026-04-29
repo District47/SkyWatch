@@ -14,7 +14,19 @@ echo ============================================================
 echo  SkyWatch launcher
 echo ============================================================
 
-rem --- 1. Locate Python (>= 3.10) ---
+rem --- 1. Pick a Python interpreter ---
+rem  Priority order:
+rem    a) Bundled embeddable Python at tools\python-win64\python.exe
+rem       (testers get this — no system Python needed).
+rem    b) System Python (py launcher / python on PATH) for developers.
+set VENVPY=
+if exist "tools\python-win64\python.exe" (
+    set VENVPY=tools\python-win64\python.exe
+    echo [OK] Using bundled Python:
+    "!VENVPY!" --version
+    goto :launch
+)
+
 set PYEXE=
 where py >NUL 2>NUL
 if %ERRORLEVEL% EQU 0 (
@@ -26,9 +38,14 @@ if %ERRORLEVEL% EQU 0 (
     )
 )
 if "%PYEXE%"=="" (
-    echo [X] Python is not installed or not on PATH.
-    echo     Install Python 3.10 or newer from https://www.python.org/downloads/
-    echo     Make sure to tick "Add Python to PATH" during install.
+    echo [X] Python is not installed or not on PATH, and tools\python-win64\
+    echo     does not contain a bundled interpreter.
+    echo.
+    echo     Tester instructions: see QUICKSTART.md — your bundle is missing
+    echo     the tools\python-win64\ folder. Re-download the SkyWatch zip.
+    echo.
+    echo     Developer instructions: install Python 3.10+ from
+    echo     https://www.python.org/downloads/  (tick "Add Python to PATH").
     goto :fail
 )
 
@@ -38,7 +55,7 @@ if %ERRORLEVEL% NEQ 0 (
     %PYEXE% --version
     goto :fail
 )
-echo [OK] Found Python:
+echo [OK] Found system Python:
 %PYEXE% --version
 
 rem --- 2. Create venv if missing ---
@@ -84,6 +101,8 @@ if "%NEED_INSTALL%"=="1" (
 ) else (
     echo [OK] Dependencies up to date.
 )
+
+:launch
 
 rem --- 4. Sanity check: bundled tools folder ---
 if exist "tools\win64\rtlsdr.dll" (

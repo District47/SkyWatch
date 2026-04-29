@@ -13,7 +13,7 @@ This is a Python port of the previous Go implementation (preserved on the [`go-r
 - **ADS-B** — track aircraft via `readsb` + RTL-SDR, or pull live data from the OpenSky Network with no hardware required.
 - **AIS** — track vessels via `rtl_ais` + RTL-SDR, or live from aisstream.io.
 - **Drone Remote ID** — sniff WiFi beacons / probe-responses for the ASTM F3411 vendor-specific IE (drones broadcasting their position over WiFi).
-- **APRS** — connect to APRS-IS over the internet and view stations / messages on the map; transmit beacons, messages, and status with your callsign + passcode.
+- **APRS** — receive packets two ways: over the internet via APRS-IS, or off-air on 144.390 MHz (US) via RTL-SDR + `rtl_fm` + `multimon-ng`. View stations / messages on the map; transmit beacons, messages, and status through APRS-IS with your callsign + passcode.
 - **NOAA satellites** — predict NOAA-15/18/19 passes (SGP4 + Celestrak TLEs) and capture APT imagery via `rtl_fm` + RTL-SDR.
 - **NOAA Weather Radio** — listen to NWR (162.4–162.55 MHz) live in the browser, scan all 7 channels, see all transmitter locations.
 - **weather.gov** — pull active alerts and forecasts for the visible area.
@@ -33,9 +33,14 @@ The dashboard is one page; tabs on the right side filter the map and right pane 
 | Drone Remote ID — **WiFi monitor mode** | yes | yes (compatible USB adapter) | yes — **requires [Npcap](https://npcap.com/) AND a chipset whose driver supports monitor mode** (e.g. Alfa AWUS036NHA / AR9271). Most generic / built-in WiFi cards will NOT work. See [SETUP.md §6](SETUP.md#6-drone-remote-id). |
 | Drone Remote ID — **Bluetooth LE** | yes | yes | yes — uses host Bluetooth, no extra hardware. Catches DJI broadcasts. |
 | APRS-IS gateway | yes | yes | yes |
+| APRS RF (`rtl_fm` + `multimon-ng` + RTL-SDR) | yes | yes | yes (drop binaries into `tools/win64/` — see [SETUP.md §6.5](SETUP.md#65-aprs-rf-rtl_fm--multimon-ng)) |
 | weather.gov forecasts/alerts | yes | yes | yes |
 
 ## Quick start
+
+> **Beta tester?** You probably want [QUICKSTART.md](QUICKSTART.md) — short, no jargon, no Python install, includes the Zadig step. The section below is for developers building from source.
+>
+> **Shipping a build to testers?** See [DISTRIBUTION.md](DISTRIBUTION.md).
 
 **Easiest path — one click / one command:**
 
@@ -142,7 +147,6 @@ skywatch/
 
 The Go version has a few subsystems that are heavier ports and still ship as v0 stubs here. The web API surface for these works — the dashboard just won't get RF-side decodes until they land:
 
-- **APRS RF demod** (Bell-202 AFSK + HDLC + AX.25). The IS-gateway path is fully working; an RTL-SDR-based packet receiver is the next module.
 - **APRS UV-Pro Bluetooth TNC.** TX path through APRS-IS works; UV-Pro KISS framing is stubbed.
 - **APT image geometric correction.** Capture + sync detection + grayscale image work; Doppler / earth-curvature correction is on the roadmap.
 

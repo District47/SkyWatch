@@ -84,10 +84,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"skywatch {__version__}")
         return 0
 
+    # Console + rotating-by-launch file log. Tester reports usually come back
+    # as "it didn't work" with no detail, so a server-side log of every run
+    # is cheap insurance.
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    from datetime import datetime
+    log_path = log_dir / f"skywatch-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+    fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format=fmt,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(log_path, encoding="utf-8"),
+        ],
     )
+    log.info("log file: %s", log_path.resolve())
 
     tracker = Tracker()
     aprs_store = APRSStore()
@@ -109,6 +122,12 @@ def main(argv: list[str] | None = None) -> int:
     # access_log=False drops the per-request "GET /api/status 200 OK" lines
     # that the dashboard's polling loops produce constantly. App-level
     # INFOs (module starts, errors, weather.gov calls) still print.
+    # The WebSocket accept lines and "connection open" messages are emitted by
+    # uvicorn's WS protocol and the websockets library outside the access-log
+    # path, so silence those logger trees explicitly.
+    logging.getLogger("websockets").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.protocols.websockets").setLevel(logging.WARNING)
     uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)
     return 0
 

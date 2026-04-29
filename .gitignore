@@ -19,6 +19,12 @@ tools/win32/
 tools/linux64/
 tools/darwin-arm64/
 tools/darwin-x64/
+# Embeddable Python populated by scripts/setup-bundle.bat (large; per-tester
+# bundle artifact, not source).
+tools/python-win64/
+
+# Per-launch log files written by skywatch/__main__.py
+logs/
 
 # OS
 .DS_Store
