@@ -1514,13 +1514,16 @@
                 // Start
                 var deviceIdx = -1;
                 var droneIface = '';
-                if (module === 'drone') {
+                if (module === 'drone' || module === 'drone-wifi') {
                     var ifaceSel = document.getElementById('drone-iface');
                     droneIface = ifaceSel ? ifaceSel.value : '';
                     if (!droneIface) {
                         showSetupMsg('Select a WiFi adapter for Drone RID first', true);
                         return;
                     }
+                } else if (module === 'drone-ble') {
+                    // BLE uses the host's default Bluetooth radio — no
+                    // dropdown, no validation needed.
                 } else {
                     var sel = document.getElementById(module + '-device');
                     if (sel) {
@@ -1536,7 +1539,7 @@
                 btn.disabled = true;
                 btn.textContent = 'Starting...';
                 var startBody = {module: module, device: deviceIdx};
-                if (module === 'drone') {
+                if (module === 'drone' || module === 'drone-wifi') {
                     startBody.interface = droneIface;
                 }
                 // Always include the visible map bounds — online feeds use it
@@ -1562,8 +1565,10 @@
                         showSetupMsg(data.error, true);
                     } else {
                         var srcLabel;
-                        if (module === 'drone') {
+                        if (module === 'drone' || module === 'drone-wifi') {
                             srcLabel = droneIface;
+                        } else if (module === 'drone-ble') {
+                            srcLabel = 'host Bluetooth radio';
                         } else {
                             srcLabel = deviceIdx === -2 ? 'Online (OpenSky)' : 'device #' + deviceIdx;
                         }

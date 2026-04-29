@@ -122,11 +122,22 @@ class Manager:
             ModuleStatus(name="remoteid",
                          enabled=self.remoteid is not None,
                          running=bool(self.remoteid and self.remoteid._task and not self.remoteid._task.done())),
-            # Frontend uses 'drone' as the module name; alias here so the
-            # Start/Stop button on the Drones tab can read its state.
-            ModuleStatus(name="drone",
+            # WiFi sniffer and BLE scanner are independent — separate status
+            # entries so the dashboard can flip the two Start/Stop buttons
+            # individually. 'drone' is kept as a combined alias (running iff
+            # either band is live) for the legacy CLI -wifi flag.
+            ModuleStatus(name="drone-wifi",
                          enabled=self.remoteid is not None,
                          running=bool(self.remoteid and self.remoteid._task and not self.remoteid._task.done())),
+            ModuleStatus(name="drone-ble",
+                         enabled=self.remoteid_ble is not None,
+                         running=bool(self.remoteid_ble and self.remoteid_ble._task and not self.remoteid_ble._task.done())),
+            ModuleStatus(name="drone",
+                         enabled=self.remoteid is not None or self.remoteid_ble is not None,
+                         running=bool(
+                             (self.remoteid and self.remoteid._task and not self.remoteid._task.done())
+                             or (self.remoteid_ble and self.remoteid_ble._task and not self.remoteid_ble._task.done())
+                         )),
             ModuleStatus(name="nwr",
                          enabled=True,
                          running=self.nwr.status.running,
@@ -273,7 +284,8 @@ class Manager:
                 await self.aprs_is.stop()
                 self.aprs_is = None
 
-    async def start_remoteid(self, interface: str, monitor: bool = True, channel: int = 6) -> None:
+    async def start_remoteid_wifi(self, interface: str, monitor: bool = True, channel: int = 6) -> None:
+        """Start only the 802.11 monitor-mode sniffer. Independent of BLE."""
         async with self._lock:
             if self.remoteid:
                 await self.remoteid.stop()
@@ -284,25 +296,48 @@ class Manager:
             self.remoteid_monitor = monitor
             self.remoteid_channel = channel
             await self.remoteid.start()
-            # BLE Drone-RID runs on the host's Bluetooth radio — no UI needed.
+
+    async def stop_remoteid_wifi(self) -> None:
+        async with self._lock:
+            if self.remoteid:
+                await self.remoteid.stop()
+                self.remoteid = None
+
+    async def start_remoteid_ble(self) -> None:
+        """Start only the BLE scanner (host Bluetooth radio or USB BT dongle).
+        Independent of the WiFi sniffer — testers with a separate BT dongle
+        and a separate WiFi monitor adapter can run both simultaneously."""
+        async with self._lock:
             if self.remoteid_ble is None:
                 self.remoteid_ble = BLEScanner(self.tracker)
             try:
                 await self.remoteid_ble.start()
             except Exception as e:
                 log.warning("BLE Drone-RID start failed: %s", e)
+                raise
 
-    async def stop_remoteid(self) -> None:
+    async def stop_remoteid_ble(self) -> None:
         async with self._lock:
-            if self.remoteid:
-                await self.remoteid.stop()
-                self.remoteid = None
             if self.remoteid_ble:
                 try:
                     await self.remoteid_ble.stop()
                 except Exception:
                     pass
                 self.remoteid_ble = None
+
+    async def start_remoteid(self, interface: str, monitor: bool = True, channel: int = 6) -> None:
+        """Back-compat: start both WiFi sniffer and BLE scanner together.
+        Used by the CLI -wifi flag and the legacy 'drone' module name. The
+        dashboard now drives drone-wifi / drone-ble independently."""
+        await self.start_remoteid_wifi(interface, monitor, channel)
+        try:
+            await self.start_remoteid_ble()
+        except Exception:
+            pass
+
+    async def stop_remoteid(self) -> None:
+        await self.stop_remoteid_wifi()
+        await self.stop_remoteid_ble()
 
     async def start_nwr(self, frequency_mhz: float, device: int = 0) -> None:
         """Start NWR with device-conflict tracking."""

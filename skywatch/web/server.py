@@ -288,10 +288,10 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             if not key:
                 return JSONResponse({"error": "aisstream API key not configured"}, status_code=400)
             await manager.start_aisstream(api_key=key)
-        elif module in ("remoteid", "drone"):
-            # Frontend sends module='drone' from the Drones tab. Reuse the WiFi
-            # interface the user originally passed via -wifi (cached on manager)
-            # if the request doesn't include one.
+        elif module in ("remoteid", "drone", "drone-wifi"):
+            # 'drone-wifi' starts only the 802.11 sniffer; 'drone' / 'remoteid'
+            # also auto-start BLE for back-compat with the CLI -wifi flag and
+            # the legacy single-button UI.
             iface = body.get("interface") or manager.remoteid_interface
             if not iface:
                 return JSONResponse(
@@ -300,7 +300,14 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
                 )
             monitor = bool(body.get("monitor", manager.remoteid_monitor))
             channel = int(body.get("channel", manager.remoteid_channel))
-            await manager.start_remoteid(iface, monitor, channel)
+            if module == "drone-wifi":
+                await manager.start_remoteid_wifi(iface, monitor, channel)
+            else:
+                await manager.start_remoteid(iface, monitor, channel)
+        elif module == "drone-ble":
+            # No interface needed — uses the host Bluetooth radio (or whichever
+            # USB BT dongle the OS has configured as default).
+            await manager.start_remoteid_ble()
         elif module == "noaa":
             # Frontend uses this for the NOAA auto-capture daemon. The tracker
             # is already running; just acknowledge so the UI updates.
@@ -336,6 +343,10 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
             await manager.stop_aisstream()
         elif module in ("remoteid", "drone"):
             await manager.stop_remoteid()
+        elif module == "drone-wifi":
+            await manager.stop_remoteid_wifi()
+        elif module == "drone-ble":
+            await manager.stop_remoteid_ble()
         elif module == "noaa":
             return {"ok": True}
         elif module == "aprs-is":
@@ -419,19 +430,22 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
 
     @app.get("/api/remoteid/stats")
     async def api_remoteid_stats():
-        if manager.remoteid is None:
-            return {"running": False}
         r = manager.remoteid
         ble = manager.remoteid_ble
+        wifi_running = bool(r and r._task and not r._task.done())
+        ble_running = bool(ble and ble._task and not ble._task.done())
         return {
-            "running": bool(r._task and not r._task.done()),
-            "interface": r.cfg.interface,
-            "frames_total": r.frames_total,
-            "frames_mgmt": r.frames_mgmt,
-            "frames_rid": r.frames_rid,
-            "last_frame_at": r.last_frame_at,
-            "last_rid_at": r.last_rid_at,
-            "ble_running": bool(ble and ble._task and not ble._task.done()),
+            # `running` = either band live, so the legacy "Sniffer not running."
+            # banner clears the moment any band starts.
+            "running": wifi_running or ble_running,
+            "wifi_running": wifi_running,
+            "interface": r.cfg.interface if r else "",
+            "frames_total": r.frames_total if r else 0,
+            "frames_mgmt": r.frames_mgmt if r else 0,
+            "frames_rid": r.frames_rid if r else 0,
+            "last_frame_at": r.last_frame_at if r else 0,
+            "last_rid_at": r.last_rid_at if r else 0,
+            "ble_running": ble_running,
             "ble_frames_total": ble.frames_total if ble else 0,
             "ble_frames_rid": ble.frames_rid if ble else 0,
             "ble_last_frame_at": ble.last_frame_at if ble else 0,
