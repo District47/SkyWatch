@@ -57,8 +57,12 @@ All 7 NWR channels<br/>live in your browser
 > **Are you a beta tester?** Head straight to **[QUICKSTART.md](QUICKSTART.md)** — short, no jargon, no Python install, includes the Zadig driver step. The section below is for developers building from source.
 >
 > **Shipping a build to testers?** See **[DISTRIBUTION.md](DISTRIBUTION.md)**.
+>
+> Visual How To Install Guide: https://link.excalidraw.com/readonly/v1V5Qwd0FsqBwJbmmPyN 
 
 ### One-click launch (developer mode)
+
+
 
 | Platform | Command |
 |---|---|
