@@ -71,7 +71,7 @@ class AIS:
         if self._task:
             try:
                 await asyncio.wait_for(self._task, timeout=5.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
+            except (asyncio.TimeoutError, asyncio.CancelledError, ConnectionError, OSError):
                 pass
 
     async def _run(self) -> None:
@@ -153,7 +153,10 @@ class AIS:
         try:
             buf = bytearray()
             while not self._stop.is_set():
-                chunk = await reader.read(4096)
+                try:
+                    chunk = await reader.read(4096)
+                except (ConnectionError, OSError):
+                    return
                 if not chunk:
                     return
                 buf.extend(chunk)
