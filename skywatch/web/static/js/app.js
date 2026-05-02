@@ -1648,8 +1648,8 @@
 
                     var marker = L.marker([s.lat, s.lon], { icon: icon })
                         .bindTooltip(s.callsign + ' — ' + s.name + ', ' + s.state +
-                            '\\n' + s.frequency.toFixed(3) + ' MHz · ' + s.power + 'W' +
-                            '\\nWFO: ' + s.wfo, {
+                            ' | ' + s.frequency.toFixed(3) + ' MHz · ' + s.power + ' Watts' +
+                            ' | WFO: ' + s.wfo + ' ', {
                             direction: 'top',
                         });
 

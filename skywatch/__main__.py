@@ -13,6 +13,7 @@ from pathlib import Path
 import uvicorn
 
 from . import __version__
+
 from .cli import parse, Args
 from .tracker import Tracker
 from .aprs import APRSStore, APRSISConfig
