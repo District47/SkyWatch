@@ -19,7 +19,7 @@ pyais==2.6.0
 pycparser==3.0
 pydantic==2.13.3
 pydantic_core==2.46.3
-pyModeS==2.18
+pyModeS==3.3.0
 pyrtlsdr==0.4.0
 pyserial==3.5
 python-dotenv==1.2.2
