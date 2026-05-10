@@ -142,7 +142,8 @@ class NativeADSB:
             target_gain = self.cfg.gain if self.cfg.gain else 49.6
             try:
                 sdr.gain = target_gain
-            except Exception:
+            except Exception as e:
+                log.exception(f"Failed to set target gate to sdr.gain: {e}")
                 pass
             log.info("native ADS-B reading from device %d at %.3f MHz, gain=%s",
                      self.cfg.device_index, _CENTER_FREQ / 1e6, sdr.gain)
@@ -172,8 +173,8 @@ class NativeADSB:
             try:
                 if sdr is not None:
                     sdr.close()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to close sdr connection: {e}")
 
     # ── Numpy demod ──────────────────────────────────────────────────
 
@@ -207,7 +208,8 @@ class NativeADSB:
             # Mode-S CRC: 0 remainder = valid frame.
             try:
                 rem = _modes_crc(msg_bytes)
-            except Exception:
+            except Exception as e:
+                log.exception(f"Failed to se rem, setting to -1: {e}")
                 rem = -1
             if rem != 0:
                 # For DF17 (ADS-B), CRC is direct; for short messages the CRC

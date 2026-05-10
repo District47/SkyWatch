@@ -67,8 +67,8 @@ class AISStream:
         if self._ws:
             try:
                 await self._ws.close()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to stop web socket: {e}")
         if self._task:
             try:
                 await asyncio.wait_for(self._task, timeout=5.0)
@@ -149,7 +149,8 @@ class AISStream:
                             break
                         try:
                             msg = json.loads(raw)
-                        except Exception:
+                        except Exception as e:
+                            log.exception(f"Failed to load aisstream json: {e}")
                             continue
                         await self._ingest(msg)
             except Exception as e:

@@ -92,7 +92,8 @@ def list_wifi_interfaces() -> list[dict]:
                 "description": description or scapy_name,
                 "wireless": wireless,
             })
-        except Exception:
+        except Exception as e:
+            log.exception(f"Failed to get iface {iface}: {e}")
             continue
 
     # Path 2: fallback to raw get_if_list() if path 1 produced nothing.
@@ -139,7 +140,8 @@ def parse_remote_id_ie(payload: bytes) -> list[tuple[int, bytes]]:
 def _decode_ascii(b: bytes) -> str:
     try:
         return b.split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
-    except Exception:
+    except Exception as e:
+        log.exception(f"Failed decode ascii: {e}")
         return ""
 
 

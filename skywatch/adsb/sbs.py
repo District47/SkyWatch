@@ -179,8 +179,8 @@ class ADSB:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to close SBS feed writer: {e}")
 
     def _handle_line(self, line: str) -> None:
         # SBS format: comma-separated, fields per BaseStation spec.

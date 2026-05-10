@@ -194,7 +194,8 @@ class NOAATracker:
                 continue
             try:
                 rec = Satrec.twoline2rv(l1, l2)
-            except Exception:
+            except Exception as e:
+                log.exception(f"Failed operation: {e}")
                 continue
             sats.append(_Sat(name=wanted[norad]["name"], norad_id=norad,
                              frequency_mhz=wanted[norad]["frequency_mhz"], rec=rec))

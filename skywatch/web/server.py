@@ -46,7 +46,8 @@ def _load_api_keys() -> dict:
         return {}
     try:
         return json.loads(_API_KEYS_FILE.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as e:
+        log.exception(f"Failed to load json: {e}")
         return {}
 
 
@@ -58,8 +59,8 @@ def _save_api_keys(keys: dict) -> None:
     try:
         import os
         os.chmod(_API_KEYS_FILE, 0o600)
-    except Exception:
-        pass
+    except Exception as e:
+        log.exception(f"Failed to save api keys: {e}")
 
 
 class WebSocketHub:
@@ -109,7 +110,8 @@ class WebSocketHub:
                 for ws in clients:
                     try:
                         await ws.send_text(data)
-                    except Exception:
+                    except Exception as e:
+                        log.exception(f"Failed to send websocket text {e} {data}")
                         await self.remove(ws)
             except Exception as e:
                 log.warning("ws broadcaster cycle error: %s", e)
@@ -131,8 +133,8 @@ def build_app(*, tracker: Tracker, aprs_store: APRSStore, manager: Manager,
                     await tracker.prune(300)
                     await aprs_store.prune()
                     hub.mark_dirty()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.exception(f"Failed to prune aprs tracking: {e}")
         asyncio.create_task(_pruner(), name="pruner")
         if extra_startup is not None:
             try:
