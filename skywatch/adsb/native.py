@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+import pyModeS
 
 from ..tracker import Target, Tracker, TYPE_AIRCRAFT
 from .aircraft_db import AircraftDB
@@ -112,12 +113,6 @@ class NativeADSB:
             return
         self._loop = asyncio.get_event_loop()
         self._stop.clear()
-        # Verify pyModeS is available before launching the thread.
-        try:
-            import pyModeS  # type: ignore  # noqa: F401
-        except Exception as e:
-            log.error("pyModeS unavailable: %s", e)
-            return
         self._thread = threading.Thread(target=self._run, name="adsb-native", daemon=True)
         self._thread.start()
 
@@ -227,13 +222,13 @@ class NativeADSB:
     # ── Message → Target ─────────────────────────────────────────────
 
     def _handle(self, hex_msg: str) -> None:
-        import pyModeS  # local import keeps module-level cheap
         ref = None
         if self.cfg.reference_lat or self.cfg.reference_lon:
             ref = (self.cfg.reference_lat, self.cfg.reference_lon)
         try:
             result = pyModeS.decode(hex_msg, reference=ref)
-        except Exception:
+        except Exception as e:
+            log.exception(f"Exception handling the message: {e}")
             return
         if not result:
             return

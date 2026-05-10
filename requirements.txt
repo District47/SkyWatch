@@ -12,7 +12,7 @@ websocket-client>=1.7
 pyais>=2.6
 
 # ADS-B / Mode S decoding (used as fallback to readsb)
-pyModeS>=2.18
+pyModeS>=3
 
 # Satellite tracking (SGP4)
 sgp4>=2.23
