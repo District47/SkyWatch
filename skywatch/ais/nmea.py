@@ -186,8 +186,8 @@ class AIS:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to close writer: {e}")
 
     async def _ingest(self, msg) -> None:
         """Convert a pyais decoded message into a Target update."""

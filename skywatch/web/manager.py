@@ -321,8 +321,8 @@ class Manager:
             if self.remoteid_ble:
                 try:
                     await self.remoteid_ble.stop()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.exception(f"Failed to stop remoteid_ble: {e}")
                 self.remoteid_ble = None
 
     async def start_remoteid(self, interface: str, monitor: bool = True, channel: int = 6) -> None:
@@ -332,8 +332,8 @@ class Manager:
         await self.start_remoteid_wifi(interface, monitor, channel)
         try:
             await self.start_remoteid_ble()
-        except Exception:
-            pass
+        except Exception as e:
+            log.exception(f"Failed to start remoteid_ble: {e}")
 
     async def stop_remoteid(self) -> None:
         await self.stop_remoteid_wifi()
@@ -377,5 +377,5 @@ class Manager:
                 log.warning("shutdown step %s: %s", stop, e)
         try:
             await self.noaa_tracker.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            log.exception(f"Failed stop noaa tracker: {e}")

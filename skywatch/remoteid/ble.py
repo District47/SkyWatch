@@ -50,13 +50,13 @@ class BLEScanner:
         if self._scanner:
             try:
                 await self._scanner.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to stop BLE Scanner: {e}")
         if self._task:
             try:
                 await asyncio.wait_for(self._task, timeout=5.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
+            except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+                log.exception(f"Failed to wait for task: {e}")
 
     async def _run(self) -> None:
         try:
@@ -103,8 +103,8 @@ class BLEScanner:
             try:
                 if self._scanner:
                     await self._scanner.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to stop BLE Scanner: {e}")
             self._scanner = None
 
     def _handle_payload(self, addr: str, payload: bytes, loop: asyncio.AbstractEventLoop) -> None:

@@ -7,10 +7,12 @@ non-empty fields across updates so partial messages accumulate over time.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Awaitable, Callable, Optional
 
+log = logging.getLogger("skywatch.tracker")
 
 TYPE_AIRCRAFT = "aircraft"
 TYPE_VESSEL = "vessel"
@@ -109,15 +111,16 @@ class Tracker:
         if self._on_change:
             try:
                 self._on_change()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to close writer: {e}")
+
         for cb in self._observers:
             try:
                 result = cb(merged)
                 if result is not None and hasattr(result, "__await__"):
                     await result
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to track observers {cb}: {e}")
 
     async def snapshot(self) -> list[Target]:
         async with self._lock:
@@ -134,8 +137,8 @@ class Tracker:
         if removed and self._on_change:
             try:
                 self._on_change()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to prune targets: {e}")
         return removed
 
     async def counts(self) -> dict[str, int]:

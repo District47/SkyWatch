@@ -158,8 +158,9 @@ class APRSRF:
             try:
                 for line in iter(decoder_stdout.readline, b""):
                     loop.call_soon_threadsafe(queue.put_nowait, line)
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to read APRS thread: {e}")
+
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 

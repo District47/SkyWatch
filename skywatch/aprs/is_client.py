@@ -51,8 +51,8 @@ class APRSISClient:
             try:
                 self._writer.close()
                 await self._writer.wait_closed()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to close writer: {e}")
         if self._task:
             try:
                 await asyncio.wait_for(self._task, timeout=5.0)
@@ -113,8 +113,8 @@ class APRSISClient:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except Exception:
-                pass
+            except Exception as e:
+                log.exception(f"Failed to close writer: {e}")
 
     async def _handle_packet(self, raw: str) -> None:
         p = parse_aprs_packet(raw)

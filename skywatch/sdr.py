@@ -52,7 +52,8 @@ def list_devices() -> list[Device]:
         try:
             raw_name = librtlsdr.rtlsdr_get_device_name(i)
             name = raw_name.decode("utf-8", errors="replace") if raw_name else ""
-        except Exception:
+        except Exception as e:
+            log.exception(f"Failed to set name of device: {e}")
             name = ""
         manuf = create_string_buffer(256)
         product = create_string_buffer(256)
@@ -63,8 +64,9 @@ def list_devices() -> list[Device]:
             mfr = manuf.value.decode("utf-8", errors="replace")
             prod = product.value.decode("utf-8", errors="replace")
             sn = serial.value.decode("utf-8", errors="replace")
-        except Exception:
-            pass
+        except Exception as e:
+            log.exception(f"Failed to decode rtlsdr values: {e}")
+
         devices.append(Device(
             index=i,
             manufacturer=mfr,

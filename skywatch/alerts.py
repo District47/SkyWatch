@@ -109,7 +109,8 @@ class AlertManager:
                     entry["category_filters"] = [legacy]
                 zone = AlertZone(**entry)
                 self._zones[zone.id] = zone
-            except Exception:
+            except Exception as e:
+                log.exception(f"Failed to load alert zone: {e}")
                 continue
         log.info("loaded %d alert zone(s)", len(self._zones))
 
@@ -201,5 +202,5 @@ class AlertManager:
             if self._on_event:
                 try:
                     self._on_event(ev)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.exception(f"Failed to alert on event: {e}")
